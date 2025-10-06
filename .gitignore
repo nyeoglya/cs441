@@ -1,0 +1,6 @@
+# venv folder
+avenv/
+
+# notebook checkpoints
+.ipynb_checkpoints
+
