@@ -47,6 +47,7 @@ def dlt_homography(pts1, pts2, use_normalization=False):
     # - Compute SVD(A); take the singular vector for the smallest σ as h.
     # - Reshape to Hn (3x3). De-normalize: H = T2^{-1} @ Hn @ T1.
     # - Scale so that H[2,2] ~ 1 (if possible).
+    # 정규화 여부에 따른 분기
     if use_normalization:
         P1, P2 = n1, n2
         Tpi = np.linalg.inv(T2)
@@ -57,18 +58,19 @@ def dlt_homography(pts1, pts2, use_normalization=False):
         T = np.eye(3)
 
     N = P1.shape[0]
-    A = np.zeros((2*N, 9), dtype=float)
-    for i,((x,y),(xp,yp)) in enumerate(zip(P1,P2)):
+    A = np.zeros((2*N, 9), dtype=float) # 행렬 생성
+    for i,((x,y),(xp,yp)) in enumerate(zip(P1,P2)): # 값 넣기
         A[2*i] = [x,y,1,0,0,0,-xp*x,-xp*y,-xp]
         A[2*i+1] = [0,0,0,x,y,1,-yp*x,-yp*y,-yp]
 
+    # SVD로 오차를 가장 줄이는 singular vector 찾기
     _, _, Vt = np.linalg.svd(A)
     Hn = Vt[-1].reshape(3, 3)
 
     H = Tpi @ Hn @ T
 
-    if abs(H[2, 2]) > 1e-12:
-        H = H / H[2, 2]
+    if abs(H[2, 2]) > 1e-12: # 0으로 나누기 방지
+        H = H / H[2, 2] # 끝 값으로 나눠서 정규화
 
     return H
     #############################

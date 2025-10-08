@@ -38,18 +38,18 @@ def orientation_assignment(gauss_pyr, kpt, num_bins: int = 36, peak_rel: float =
     # Hints:
     # - Build a histogram over [0, 2π) with 'num_bins' bins using window magnitudes.
     # - Select all bin centers whose height ≥ peak_rel * (global max).
-    hist = np.zeros(num_bins, dtype=float)
-    bin_width = 2*np.pi / num_bins
-    for ai, mi in zip(a.ravel(), m.ravel()):
+    hist = np.zeros(num_bins, dtype=float) # 빈 히스토그램 생성
+    bin_width = 2*np.pi / num_bins # 각 bin의 범위
+    for ai, mi in zip(a.ravel(), m.ravel()): # 픽셀 방향(a), 크기(m) 이용해서 히스토그램 생성
         idx = int(ai // bin_width) % num_bins
         hist[idx] += mi
 
-    thres = hist.max() * peak_rel
+    thres = hist.max() * peak_rel # 전체 히스토그램 중 최댓값의 비율에 의한 임계값
     orientations = []
-    for i, hval in enumerate(hist):
+    for i, hval in enumerate(hist): # dominant 방향 후보 탐색
         if hval >= thres:
             theta = (i + 0.5) * bin_width
-            orientations.append(theta % (2*np.pi))
+            orientations.append(theta % (2*np.pi)) # 2pi로 모듈러 연산 (범위 유지)
 
     return orientations
     #############################

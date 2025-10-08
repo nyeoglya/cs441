@@ -24,24 +24,25 @@ def build_gaussian_pyramid(gray: np.ndarray, sigma0: float = 1.6,
     # - First level in each octave has absolute sigma0.
     # - Next levels use incremental blur (level-to-level).
     # - Next octave base = previous octave's mid-level downsampled by 2.
+    # 다운샘플링 함수
     def downsample(img):
         h, w = img.shape
         img = img[:h - h % 2, :w - w % 2]
         return img.reshape(h // 2, 2, w // 2, 2).mean(axis=(1, 3))
 
     k = 2**(1/scales)
-    g_base = gaussian_blur(gray, sigma0)
+    g_base = gaussian_blur(gray, sigma0) # 블러한 걸 시작 값으로
     g_pyramid = []
-    for _ in range(octaves):
+    for _ in range(octaves): # 각 octave마다
         octave_imgs = [g_base]
-        for i in range(1, scales+3):
+        for i in range(1, scales+3): # scales+3 크기의 gaussian pyramid 만들기
             sigma_prev = sigma0 * (k ** (i - 1))
             sigma_total = sigma0 * (k ** i)
             sigma_diff = (sigma_total**2 - sigma_prev**2) ** 0.5
-            next_img = gaussian_blur(octave_imgs[-1], sigma_diff)
+            next_img = gaussian_blur(octave_imgs[-1], sigma_diff) # 다음 이미지에 블러 적용
             octave_imgs.append(next_img)
 
-        g_base = downsample(octave_imgs[len(octave_imgs)//2].copy())
+        g_base = downsample(octave_imgs[len(octave_imgs)//2].copy()) # 직전 octave의 절반 정도 위치에서 새 base 가져오기
         g_pyramid.append(octave_imgs)
     return g_pyramid
     #############################

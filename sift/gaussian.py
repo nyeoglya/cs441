@@ -24,11 +24,11 @@ def gaussian_kernel_1d(sigma: float, radius: int | None = None) -> np.ndarray:
     #############################
     ######### Implement here ####
     # Hint: build symmetric 1-D Gaussian samples and normalize to sum=1.
-    if radius == None:
+    if radius == None: # radius가 없으면 기본적으로 3*sigma 적용
         radius = int(3*sigma)
 
-    g_kernel = np.exp(-np.arange(-radius,radius+1)**2/(2*sigma**2))
-    return g_kernel / g_kernel.sum()
+    g_kernel = np.exp(-np.arange(-radius,radius+1)**2/(2*sigma**2)) # 1D 가우시안 분포 생성
+    return g_kernel / g_kernel.sum() # 정규화
     #############################
 
 
@@ -103,9 +103,10 @@ def image_gradients(gray: np.ndarray, sigma: float = 1.0):
     #   along the other axis (separable idea).
     # - Build a small 1-D derivative kernel (no Sobel).
     # - Produce Ix and Iy consistent with DoG from the slides.
-    g_kernel = gaussian_kernel_1d(sigma)
-    s_conv = separable_conv2d(g, g_kernel)
+    g_kernel = gaussian_kernel_1d(sigma) # 1D 가우시안 분포 생성
+    s_conv = separable_conv2d(g, g_kernel) # 가우시안 적용한 이미지
 
+    # 미분 계산하기 위한 패드 만들기
     x_pad = np.pad(s_conv, ((0, 0), (1, 1)), mode='reflect')
     y_pad = np.pad(s_conv, ((1, 1), (0, 0)), mode='reflect')
 

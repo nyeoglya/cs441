@@ -27,15 +27,24 @@ def match_l2_crosscheck(descA, descB):
     # - Build pairwise squared-distance matrix.
     # - Find NN indices for A->B and B->A.
     # - Keep pairs that are mutual AND return their distances.
-    diff_mat = np.array(descB)[:, None, :] - np.array(descA) # broadcasting
-    dist_mat = np.sqrt(np.sum(diff_mat**2, axis=2)).transpose() # lenA x lenB matrix
-    nn = np.argmin(dist_mat, axis=1)
-    
-    matches = []
-    for i, j in enumerate(nn):
-        dist = dist_mat[i, j]
-        matches.append((i, j, dist))
+    A = np.stack(descA)
+    B = np.stack(descB)
 
+    # D(i,j) = ||A[i] - B[j]||^2
+    dist_sq = np.sum(A**2, axis=1)[:, np.newaxis] + np.sum(B**2, axis=1) - 2 * A.dot(B.T)
+    dist_sq = np.maximum(dist_sq, 0)
+
+    # nearest neighbors 찾기
+    nn_AB = np.argmin(dist_sq, axis=1) # NN in B for each in A
+    nn_BA = np.argmin(dist_sq, axis=0) # NN in A for each in B
+
+    matches = []
+    for i, j in enumerate(nn_AB):
+        # crosscheck. i가 j의 NN인지 체크
+        if nn_BA[j] == i:
+            dist = np.sqrt(dist_sq[i, j])
+            matches.append((i, j, dist))
+            
     return matches
     #############################
 

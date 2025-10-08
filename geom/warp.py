@@ -23,6 +23,7 @@ def warp_inverse_map(src, H, out_shape, fill=0.0):
     if src.ndim == 2: C = 1; src_c = src[...,None]
     else: C = src.shape[2]; src_c = src
     out = np.full((Hh, Hw, C), fill, dtype=np.float64)
+    src_h, src_w = src.shape[:2]
 
     #############################
     ######### Implement here ####
@@ -31,45 +32,50 @@ def warp_inverse_map(src, H, out_shape, fill=0.0):
     # - Map by H^{-1} to source coords; divide by w.
     # - Bilinear sample (check 4 neighbors; skip out-of-bounds).
     # - Write to 'out' per channel. Return gray if C==1.
-    H_inv = np.linalg.inv(H)
+    try:
+        H_inv = np.linalg.inv(H)
+    except np.linalg.LinAlgError:
+        if C == 1: return out[...,0]
+        return out
 
-    ys, xs = np.meshgrid(np.arange(Hh), np.arange(Hw), indexing='ij')
-    dest = np.stack([xs, ys, np.ones_like(xs, dtype=np.float64)], axis=-1)
+    # 도착지 그리드 만들기
+    y_out, x_out = np.indices(out_shape)
+    dest_coords_h = np.stack((x_out.ravel(), y_out.ravel(), np.ones(x_out.size)))
 
-    src_h, src_w = src_c.shape[:2]
+    # 원본 좌표로 매핑
+    src_coords_h = H_inv @ dest_coords_h
+    w = src_coords_h[2]
+    w[w == 0] = 1e-9 # 혹시모를 0으로 나누기 문제 제거
 
-    for i in range(Hw):
-        for j in range(Hh):
-            pt = dest[j, i]
-            ipt = H_inv @ pt
+    src_x = (src_coords_h[0] / w).reshape(out_shape)
+    src_y = (src_coords_h[1] / w).reshape(out_shape)
 
-            w = ipt[2]
-            if w == 0 or not np.isfinite(w):
-                continue
+    # 유효한 좌표 찾기
+    mask = (src_x >= 0) & (src_x < src_w - 1) & (src_y >= 0) & (src_y < src_h - 1)
 
-            x_src = ipt[0] / w
-            y_src = ipt[1] / w
+    # 샘플링 위치
+    x0 = np.floor(src_x).astype(int)
+    y0 = np.floor(src_y).astype(int)
+    x1 = x0 + 1
+    y1 = y0 + 1
 
-            x0 = int(np.floor(x_src))
-            y0 = int(np.floor(y_src))
-            x1 = x0 + 1
-            y1 = y0 + 1
+    # 가중치 계산
+    wx = src_x - x0
+    wy = src_y - y0
 
-            if x0 < 0 or y0 < 0 or x1 >= src_w or y1 >= src_h:
-                continue
+    # 실제 샘플링
+    v00 = src_c[y0[mask], x0[mask]]
+    v10 = src_c[y0[mask], x1[mask]]
+    v01 = src_c[y1[mask], x0[mask]]
+    v11 = src_c[y1[mask], x1[mask]]
 
-            wx = x_src - x0
-            wy = y_src - y0
-            w00 = (1 - wx) * (1 - wy)
-            w10 = wx * (1 - wy)
-            w01 = (1 - wx) * wy
-            w11 = wx * wy
-
-            v00 = src_c[y0, x0]
-            v10 = src_c[y0, x1]
-            v01 = src_c[y1, x0]
-            v11 = src_c[y1, x1]
-            out[j, i] = w00 * v00 + w10 * v10 + w01 * v01 + w11 * v11
+    # 가중치 곱해서 보간
+    interp_val = (v00.T * (1 - wx[mask]) * (1 - wy[mask]) +
+                  v10.T * wx[mask] * (1 - wy[mask]) +
+                  v01.T * (1 - wx[mask]) * wy[mask] +
+                  v11.T * wx[mask] * wy[mask]).T
+    
+    out[mask] = interp_val
 
     if C == 1:
         out = out[..., 0]

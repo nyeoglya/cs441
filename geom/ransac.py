@@ -36,32 +36,32 @@ def ransac_homography(pts1, pts2, iters=2000, thresh=3.0, seed=0):
     #   * Mark inliers by 'thresh'; if better than best, store H & mask.
     # - If no valid model, return (None, zeros(N)).
     # - Else refit H on best inliers (DLT) and return.
-    for _ in range(iters):
-        idx = rng.choice(N, size=4, replace=False)
+    for _ in range(iters): # iters 만큼 실행
+        idx = rng.choice(N, size=4, replace=False) # 값 4개 고르기
         sam1, sam2 = pts1[idx], pts2[idx]
-        H = dlt_homography(sam1, sam2)
+        H = dlt_homography(sam1, sam2) # homography 만들기
         if H is None or not np.all(np.isfinite(H)):
             continue
-        err = reprojection_errors(H, pts1, pts2)
+        err = reprojection_errors(H, pts1, pts2) # 에러 계산
         if err is None or err.shape[0] != N:
             continue
         if not np.isfinite(err).any():
             continue
 
-        inliers = np.logical_and(err < thresh, np.isfinite(err))
+        inliers = np.logical_and(err < thresh, np.isfinite(err)) # 에러가 thresh보다 작은 inlier 추출
         score = int(inliers.sum())
-        if score > best_score:
+        if score > best_score: # inliers가 많으면 그거 고르기
             best_score = score
             best_inliers = inliers
             best_H = H
 
     if best_H is None or best_inliers is None or best_score < 4:
         return None, np.zeros(N, dtype=bool)
-    H_refit = dlt_homography(pts1[best_inliers], pts2[best_inliers])
+    H_refit = dlt_homography(pts1[best_inliers], pts2[best_inliers]) # 위의 homography는 점 4개로 만든것이기 때문에 H 재계산
     if H_refit is None or not np.all(np.isfinite(H_refit)):
         H_refit = best_H
 
-    err_final = reprojection_errors(H_refit, pts1, pts2)
+    err_final = reprojection_errors(H_refit, pts1, pts2) # homography 재계산 & 둘 중 더 나은 걸 최종 선택
     if err_final is not None and err_final.shape[0] == N and np.any(np.isfinite(err_final)):
         final_inliers = (err_final < thresh) & np.isfinite(err_final)
     else:

@@ -20,13 +20,16 @@ def hessian_edge_reject(D: np.ndarray, y: int, x: int, edge_th: float = 10.0) ->
     # Hints:
     # - Estimate a 2×2 Hessian at (y,x) from local finite differences.
     # - Compute trace^2 / det, check against ((r+1)^2)/r and det>0.
+    # hessian matrix 원소 계산
     Dxx = float(D[y, x+1]) - 2.0*float(D[y, x]) + float(D[y, x-1])
     Dyy = float(D[y+1, x]) - 2.0*float(D[y, x]) + float(D[y-1, x])
     Dxy = 0.25 * (float(D[y+1, x+1]) - float(D[y+1, x-1]) - float(D[y-1, x+1]) + float(D[y-1, x-1]))
 
+    # trace, det 계산
     tr = Dxx + Dyy
     det = Dxx*Dyy - Dxy**2
 
+    # 조건에 분기하면서 True/False 반환
     if det <= 0:
         return False
 

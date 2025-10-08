@@ -47,9 +47,11 @@ def sift_descriptor(gauss_pyr, kpt, theta: float,
     bin_width = 2*np.pi / bins
     for i in range(cell):
         for j in range(cell):
+            # 셀마다 패치 생성
             m_patch = m[i*hstep:(i+1)*hstep, j*wstep:(j+1)*wstep]
             a_patch = a[i*hstep:(i+1)*hstep, j*wstep:(j+1)*wstep]
 
+            # 히스토그램 만들기
             for a_data, m_data in zip(a_patch.ravel(), m_patch.ravel()):
                 idx = int(a_data // bin_width) % bins
                 desc[i, j, idx] += m_data
@@ -60,7 +62,7 @@ def sift_descriptor(gauss_pyr, kpt, theta: float,
     # Hints:
     # - Flatten to 128-D and L2-normalize.
     # - (Optional) small clipping before renormalization if you want textbook SIFT.
-    vec = desc.ravel().astype(np.float32)
-    norm = np.linalg.norm(vec) + 1e-7
+    vec = desc.ravel().astype(np.float32) # flatten
+    norm = np.linalg.norm(vec) + 1e-7 # 정규화용 값 + 0 방지
     return vec / norm
     #############################
