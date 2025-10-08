@@ -4,3 +4,6 @@ avenv/
 # notebook checkpoints
 .ipynb_checkpoints
 
+# temp folder
+cache/
+outputs/
