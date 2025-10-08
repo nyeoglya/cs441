@@ -39,7 +39,7 @@ def ransac_homography(pts1, pts2, iters=2000, thresh=3.0, seed=0):
     for _ in range(iters): # iters 만큼 실행
         idx = rng.choice(N, size=4, replace=False) # 값 4개 고르기
         sam1, sam2 = pts1[idx], pts2[idx]
-        H = dlt_homography(sam1, sam2) # homography 만들기
+        H = dlt_homography(sam1, sam2, use_normalization=True) # homography 만들기
         if H is None or not np.all(np.isfinite(H)):
             continue
         err = reprojection_errors(H, pts1, pts2) # 에러 계산
@@ -57,7 +57,7 @@ def ransac_homography(pts1, pts2, iters=2000, thresh=3.0, seed=0):
 
     if best_H is None or best_inliers is None or best_score < 4:
         return None, np.zeros(N, dtype=bool)
-    H_refit = dlt_homography(pts1[best_inliers], pts2[best_inliers]) # 위의 homography는 점 4개로 만든것이기 때문에 H 재계산
+    H_refit = dlt_homography(pts1[best_inliers], pts2[best_inliers], use_normalization=True) # 위의 homography는 점 4개로 만든것이기 때문에 H 재계산
     if H_refit is None or not np.all(np.isfinite(H_refit)):
         H_refit = best_H
 
