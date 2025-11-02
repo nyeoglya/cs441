@@ -6,3 +6,6 @@
 
 ### Assignment 1
 Implement a image stitching by using SIFT and RANSAC.
+
+### Assignment 2
+Implement a pedestrians detection by using HOG and Linear SVM.
