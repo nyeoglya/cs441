@@ -34,24 +34,22 @@ def compute_gradient(image):
     # TODO 1: Implement gradient computation
     # ========================================
 
-    max_mag_sq = np.zeros((height, width))
-    for i in range(n_channels):
-        channel_img = image[:,:,i]
-        # 상하좌우 각각 1픽셀씩 패딩해서 추가
-        padded_x = np.pad(channel_img, ((0, 0), (1, 1)), 'edge')
-        padded_y = np.pad(channel_img, ((1, 1), (0, 0)), 'edge')
-        
-        # 중앙 차분으로 차이 계산
-        gx_channel = (padded_x[:, 2:] - padded_x[:, :-2]) / 2.0
-        gy_channel = (padded_y[2:, :] - padded_y[:-2, :]) / 2.0
+    # 채널별 패딩
+    padded_x = np.pad(image, ((0, 0), (1, 1), (0, 0)), 'edge')
+    padded_y = np.pad(image, ((1, 1), (0, 0), (0, 0)), 'edge')
 
-        # 최댓값 계산
-        channel_mag_sq = np.square(gx_channel) + np.square(gy_channel)
-        
-        update_mask = channel_mag_sq > max_mag_sq
-        gx[update_mask] = gx_channel[update_mask]
-        gy[update_mask] = gy_channel[update_mask]
-        max_mag_sq[update_mask] = channel_mag_sq[update_mask]
+    # 채널별 gradient 계산
+    gx_channels = (padded_x[:, 2:, :] - padded_x[:, :-2, :]) / 2.0
+    gy_channels = (padded_y[2:, :, :] - padded_y[:-2, :, :]) / 2.0
+
+    # 채널별 magnitude 제곱값 계산
+    mag_sq_channels = np.square(gx_channels) + np.square(gy_channels)
+    max_mag_indices = np.argmax(mag_sq_channels, axis=2) # 픽셀별 최댓값 계산
+    h_indices, w_indices = np.ogrid[:height, :width]
+
+    # gradient 선택
+    gx = gx_channels[h_indices, w_indices, max_mag_indices]
+    gy = gy_channels[h_indices, w_indices, max_mag_indices]
     
     # ========================================
     

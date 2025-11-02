@@ -36,27 +36,28 @@ def compute_cell_histogram(magnitude, angle, cell_size=8, nbins=9):
     # TODO 3: Implement cell histogram computation
     # ========================================
     
-    bin_size = 180.0 / nbins # 각 bin 각도 기준
-    for r in range(height):
-        for c in range(width):
-            mag = magnitude[r, c]
-            ang = angle[r, c]
-            cell_y = r // cell_size
-            cell_x = c // cell_size
-            bin_float = (ang / bin_size) - 0.5 # 빈 위치 계산          
-            bin_idx_1 = int(np.floor(bin_float))
-            bin_idx_2 = int(np.ceil(bin_float))
-            
-            # 선형보간 가중치
-            weight_2 = bin_float - bin_idx_1
-            weight_1 = 1.0 - weight_2
-            
-            # 마지막 빈이랑 처음 빈 연결
-            bin_idx_1 = (bin_idx_1 + nbins) % nbins
-            bin_idx_2 = (bin_idx_2 + nbins) % nbins
-
-            cell_histograms[cell_y, cell_x, bin_idx_1] += weight_1 * mag
-            cell_histograms[cell_y, cell_x, bin_idx_2] += weight_2 * mag
+    bin_size = 180.0 / nbins
+    
+    # 픽셀별 index 계산
+    y_coords, x_coords = np.mgrid[:height, :width]
+    cell_y_idx = y_coords // cell_size
+    cell_x_idx = x_coords // cell_size
+    
+    # 픽셀별 weight 계산
+    bin_float = (angle / bin_size) - 0.5
+    bin_idx_1 = np.floor(bin_float).astype(int)
+    bin_idx_2 = np.ceil(bin_float).astype(int)
+    
+    weight_2 = bin_float - bin_idx_1
+    weight_1 = 1.0 - weight_2
+    
+    # index 계산
+    bin_idx_1 = (bin_idx_1 + nbins) % nbins
+    bin_idx_2 = (bin_idx_2 + nbins) % nbins
+    
+    # magnitude 갱신
+    np.add.at(cell_histograms, (cell_y_idx, cell_x_idx, bin_idx_1), weight_1 * magnitude)
+    np.add.at(cell_histograms, (cell_y_idx, cell_x_idx, bin_idx_2), weight_2 * magnitude)
 
     # ========================================
     

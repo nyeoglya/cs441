@@ -56,24 +56,22 @@ class HOGDescriptor:
         # TODO 4: Implement block normalization
         # ========================================
 
-        # l2 정규화해주는 함수
-        def normalize(vec):
-            norm = np.sqrt(np.sum(vec ** 2) + epsilon**2) # 기준점
-            if norm > epsilon: # 적당한 크기면
-                norm_vec = vec / norm
-            else: # 너무 작으면
-                norm_vec = np.zeros_like(vec)
-            return norm_vec
-
         bs = self.block_size
-        feat_len = (bs ** 2) * nbins
-        cidx = 0
-        for y in range(n_blocks_y):
-            for x in range(n_blocks_x):
-                block = cell_histograms[y:y+bs,x:x+bs,:] # 벡터 자르기
-                block_vector = block.ravel() # 벡터 펼치기
-                features[cidx:cidx+feat_len] = normalize(block_vector) # 데이터 할당
-                cidx += feat_len # 인덱스 업데이트
+        
+        # 속도 향상을 위한 stride 뷰 생성 (데이터 복사가 없어서 엄청 빨라짐)
+        shape = (n_blocks_y, n_blocks_x, bs, bs, nbins)
+        strides = (cell_histograms.strides[0], cell_histograms.strides[1],
+                   cell_histograms.strides[0], cell_histograms.strides[1],
+                   cell_histograms.strides[2])
+        blocks = np.lib.stride_tricks.as_strided(cell_histograms, shape=shape, strides=strides)
+        
+        block_vectors = blocks.reshape(n_blocks_y * n_blocks_x, -1) # row당 블럭 1개
+        norms = np.sqrt(np.sum(np.square(block_vectors), axis=1, keepdims=True) + epsilon**2) # L2 norm
+
+        normalized_vectors = block_vectors / norms
+        normalized_vectors[norms.flatten() < epsilon, :] = 0 # 0으로 나누기 회피
+
+        features = normalized_vectors.ravel() # 벡터 펼치기
         
         # ========================================
         
