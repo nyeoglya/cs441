@@ -1,0 +1,90 @@
+### 12-1. Metric Learning
+- metric은 결국 거리를 재는 도구이다.
+- metric을 집합 내 두 원소 사이의 유사도를 나타내는데 사용가능하다.
+- 활용 예시:
+	- information retrieval
+	- face identification/verification
+	- person re-identification
+	- visual tracking
+	- local patch matching for stereo imaging
+		- patch matching: 이미지 패치의 유사도를 측정하는 기술
+	- visual representation learning: 기존의 모델들은 labeled data로 학습된다.
+		- label이 없는 데이터를 학습할 때 쓴다.
+		- matching learning을 수행한다.
+		- 가령, 비디오의 시작 시간에서 랜덤하게 선택된 패치를 motion analysis로 추적하고, 그것들을 같거나 비슷하다고 정의하면 metric learning을 쓸 수 있다.
+- 데이터를 수적인 표현으로 변환(vector 같은거) -> metric을 적용한다.
+	- pairwise relation: 데이터 2개로 시작. 둘이 비슷하면 거리를 줄이고, 다르면 거리를 늘림.
+	- triplet relation: 데이터 3개로 시작. anchor를 기준으로 가까운 건 가깝게, 먼건 더 멀게 한다. 즉, 최종적으로는 pos pair가 neg pair보다 가까워지는게 목적이다.
+	- 결과적으로 이러한 학습들은 data manifold를 만든다.
+- metric learning은 거리함수 d 그리고/또는 데이터 변환 함수 f를 학습시키는게 목적이다.
+- f는 Deep NN으로 만들고, d는 cosine sim, euclidean 등으로 설정한다.
+#### 12-1-1. Mahalanobis Distance
+- 우리는 euclidean distance에 익숙하다. 그런데, 어떤 data manifold는 생각했을 때, mahalanobis distance가 더 적합할 수도 있다.
+$$
+D_M(x_i,x_j) = \sqrt{(x_i-x_j)^\intercal M (x_i-x_j)}
+$$
+- 위에서 $M$을 결정한다. euclidean distance의 일반화된 버전이고, $M$은 positive semi-definite matrix여야 한다.
+- mahalanobis diatnce를 multivariate normal dist.에도 사용할 수 있음.
+- M은 데이터에서 추론할 수 있다. 여기서는 실제 optimization을 자세히 설명하지는 않는다. objective function이랑 loss function만 다룰거임.
+	- unsupervised way: covariance matrix $\Sigma$를 계산하고, 그것의 역행렬을 사용하는게 가장 간단한 방법이다.
+	- distance metric learning:
+		- similar pair set, negative pair set 2개가 주어진다.
+		- 비슷한 것들의 거리합이 최소가 되면서, 다른 것의 거리합은 커지게 한다.
+		- negative pair 사이의 거리가 positive pair에 비해 충분히 멀게만(1 이상이라는 제약조건을 준다) 만들면 된다.
+		- negative pair는 constraint로 작용한다.
+	- large margin nearest neighbor:
+		- $\eta_{ij}$를 $x_i,x_j$가 같을 때만 1이 되도록 하는 index variable이라고 하자.
+		- obj function은 2개 부분으로 분할된다.
+			- 앞쪽 $\sum \eta_{ij} D_M(x_i,x_j)^2$은 class label이 같은 것만 취급한다.
+			- 뒤쪽 $\sum \eta_{ij} (1-\eta_{il}) h(1+D_M(x_i,x_j)^2-D_M(x_i,x_l)^2)$은 triplet loss이다.
+		- $h$는 hinge function이다. 만약 negative distance pair가 positive distance pair+1이면 양수를 반환한다. 즉, 이러한 경우가 생기는 걸 막는게 목표이다.
+		- margin 1로 인해, negative pair 거리가 positive pair 거리보다 많이 커져야 한다.
+- metric learning은 기존의 모델에 obj function만 바꿔서 학습시키는 걸 목적으로 한다.
+### 12-2. Deep Metric Learning
+- DNN은 표현력이 높다. 이건 매우 큰 장점.
+- deep metric learning 전까지는 hand crafted 모델들을 가지고 mahalanobis distance를 학습시키는 걸 목적으로 했음.
+	- deep metric learning은 사람에 의해 만들어진 데이터의 representation을 학습하는 걸 목적임
+- siamese network: 파라미터 공유하는 네트워크 2개.
+	- contrastive loss: 같은 레이블은 loss가 0이 되도록 하며, 다른 레이블은 loss가 특정 margin인 m에 가까워지게 한다. 위의 LMNN이랑 결론적으로 같은 방법임.
+	- euclidean distance을 사용한다. loss function을 weight에 대해 최소화시키는 것이 목적. GD를 쓰면 된다.
+- triplet network: 파라미터를 공유하는 네트워크 3개.
+	- 각 데이터가 네트워크에 들어가서 real vector로 임베딩된다.
+	- 데이터는 기준점인 anchor와 pos/neg로 구성됨.
+	- 그냥 위에서 다뤘던 triplet loss임.
+		- 이렇게 space에 임베딩되었을 때, pos가 neg보다 anchor에 가까워야 함.
+		- 이건 충분하지 않을 수 있기에, 보통 pos/neg 및 anchor 거리 사이에 margin을 추가한다.
+		- hinge function의 gradient descent는 간단함.
+		- 결과적으로 pos와 anchor는 가까워지고, neg와 anchor는 멀어진다.
+- practical detail
+	- $\mathcal{L}_2$ 정규화: $k$차원 데이터를 $k-1$차원 구 표면 위에 매핑한다.
+		- margin이 데이터 스케일 때문에 무시될 수 있음을 해결.
+		- 즉, 이거 안하면 margin이 큰 의미가 없음.
+	- weight sharing: 실제로는 모델 1개에 그냥 mini batch 데이터 전부 넣고, 그것들의 출력 임베딩 벡터를 3개씩 묶어서 loss를 계산한다.
+	- 참고로 보통 triplet loss가 contrastive loss보다 좋음.
+- sample selection
+	- 데이터가 $N$개면 샘플이 $N^2$, $N^3$개 임. 너무 많음.
+	- 샘플을 너무 랜덤하게 고르면, training에 도움이 안되는 것이 골라질 수도 있음.
+		- 이미 loss의 조건을 만족하는 놈들이면 loss function이 0가 된다.
+	- 또한, anchor에서 negative가 너무 가까우면(너무 어려운 경우), negative가 학습 결과로 조금만 이동해도 anchor가 변하는 위치가 크게 바뀜(불안정)
+	- uniform sampling에 문제가 있을 수 있음.
+		- euclidean space에서 사용한 metric은 공간에서 사용하는 건데, 그걸 구 표면으로 옮기니 거리 bias가 생긴다.
+		- DWS(distance weighted sampling): 수학적으로 만들어진 분포 함수 이용한다.
+			- distance distribution으로 만들어진 함수의 역함수를 이용해, uniform sampling에서의 분포를 균등하게 만든다.
+			- 이때, lambda는 쿼리에서 너무 멀리 떨어진 데이터는 신경쓰지 않도록 한다. 너무 멀리 떨어지면 inverse가 너무 커진다.
+			- margin based loss ==구체적인 내용은 생략==
+			- 근데, 논문에서 만든 loss function이 그렇게 잘 작동하지는 않았음.
+- object tracking: 시간에 따라 같은 오브젝트가 다른 모습을 보이게 된다. 그런 모습에 같은 숫자를 부여해야 한다. 그런데, 다른 오브젝트들은 또 달라야 됨.
+	- quadruplet network: positive relation 끼리도 distance가 있어야 하는 경우가 있다.
+		- 2개의 triplet loss를 합쳐서 만들었다.
+		- 첫번째 triplet loss는 positive sample은 가까워져야 한다는 것을 의미한다.
+			- $x^a$, $x^{t1}$, $x^{t2}$가 전부 positive임
+			- 여기서 시간적으로 가까운 샘플은 더 가까워야 됨.
+		- 두번째 triplet loss는 negative sample이 positive보다 멀어야 한다는 것을 의미한다.
+			- ordinary triplet loss. 이때 negative loss는 시간적으로 먼 샘플보다도 더 멀어야 됨.
+### 12-3. Applications
+- nearest neighbor search
+	- image completion: 이미지가 주어지고, mask된다. 이걸 채우는 방법은 뭘까? 지금은 생성형 모델을 쓰면 되는데, 옛날에는 데이터베이스에서 의미적으로 비슷한 것들을 찾았음. 그리고 가장 같은 배경을 찾고, 거기서 필요한 파트를 잘라서 붙여넣음.
+	- label transfer: dense label을 만드는 작업. 이미지 데이터셋이 있고, 거기서 얻은 데이터를 가지고 label을 칠한다. 이미 레이블이 지정된 이웃 이미지를 이용해 레이블을 만드는 방식.
+- image retrieval: 임베딩 공간에서 가장 가까운 데이터를 가져온다.
+- face verification: 데이터베이스의 사람 얼굴 이미지들을 쿼리랑 매칭한다.
+- (person reidentification은 스킵함)

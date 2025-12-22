@@ -1,0 +1,124 @@
+### 13-1. Visual Tracking
+- 일단 motion analysis임. 시간에 따른 target object 위치 추적임.
+- 모델이 trajectory를 반환한다. 그래서 그걸 다양한 곳에 활용 가능.
+- long term tracking: 물체가 화면 밖으로 사라질 때까지 계속 tracking. 잠시 가려졌다가 나타나는 것도 tracking해야 됨.
+- 대부분 아래의 2개로 tracking 문제를 분리해서 해결한다.
+	- appearance model
+		- single object tracking: 첫번째 프레임에서 수동으로 위치 지정. 그 후부터는 물체 주변에 랜덤한 candidate 만들고 거기서 가장 비슷한 거 고르는 방식.
+		- multi-object tracking: 객체 탐지기가 자동으로 여러 객체를 탐지. 후보 만들고, 유사도의 합이 가장 큰 bounding box들을 고르기.
+		- candidate와 원래 데이터 사이의 유사도를 측정하기 위한 metric space를 정의해야 함.
+		- challenges: 조명 변화. background에 있는 다른 물체에 시선을 뺏김. 물체에 가려짐. 자세 변화.
+	- motion model
+		- random sampling: 이전 위치를 가지고 주변에 랜덤한 박스를 그린 다음에 찾기. 확률적임.
+		- sliding window: 큰 범위 안에서 윈도우를 돌려서 찾기. 결정론적임.
+		- challenges: 빠르게 이동하면 잡기 힘듦.
+### 13-2. Single Target Tracking
+- 용어 설명: sequential probabilistic estimation에서 나온거임.
+	- $z_{1:t}$: 시간 1부터 t까지의 연속적인 관찰, $x_t$: 시간 t에서의 target state
+		- z는 실제 측정 데이터. x는 우리가 원하는 데이터로 z로부터 간접적으로 파악해야 하는 추상적인 정보임.
+		- 가령, $x_t$는 bound box이고 $z_t$는 비디오 데이터임.
+	- prediction: $p(x_{t+\alpha}|z_{1:t})$를 계산. 현재 시각의 데이터로 미래 데이터를 예측함.
+	- filtering: $p(x_t|z_{1:t})$를 계산. 시작부터 현재 시각 데이터로 현재 시각의 데이터를 예측함.
+		- particle filtering의 filtering은 여기서 나온거임.
+	- smoothing: $p(x_{t-\alpha}|z_{1:t})$를 계산. 과거 시각의 데이터를 예측함. (visual tracking에서는 안쓰임)
+- probabilistic tracking
+	- target의 위치를 시간에 따라 어떻게 예측할까?
+	- 위치만 예측하는 건 크기를 반영 못하기 때문에, 보통 크기를 고려한 rectangle을 예측한다.
+	- pdf에서 peak를 고른다. 하나의 bounding box만 고르는 건 어렵다.
+	- peak이 완전히 정확하지 않아도 올바른 다른 target을 고를 수 있다.
+	- pdf는 적은 수의 parameter로 무한히 많은 hypothesis를 가지게 한다는 장점이 있다.
+- 1st order markov assumption: 현재 state인 $x_t$가 $x_{t-1}$에만 의존한다. 현재 관찰 $z_t$는 $x_t$에만 의존한다.
+	- order는 의존하는 연속된 과거 데이터 개수를 의미한다. 너무 높으면 복잡도가 올라감.
+	- 왜 $z_t$가 $x_t$에만 의존할까? 나중에 예시로 알려줄거임.
+- sequential density estimation: sequential bayesian filtering 식의 $p(z_{1:t})$를 uniform distribution으로 생각하면, 하나의 상수임. 그래서 그냥 비례 관계로 생각할 수 있음.
+$$
+p(x_t|z_{1:t}) = \frac{p(z_{1:t},x_t)}{p(z_{1:t})}
+= \frac{1}{p(z_{1:t})} \int \cdots \int \int p(z_{1:t},x_{1:t}) dx_1 \cdots dx_{t-1}
+$$
+- 위의 식에서 $p(z_{1:t}|x_{1:t})=p(z_t|x_t)\cdots p(z_1|x_1)$, $p(x_{1:t})=p(x_t|x_{t-1})\cdots p(x_2|x_1) p(x_1)$로 분해할 수 있다.
+	- 1st order markov assumption을 이용한 결과임.
+	- 각각을 1st order probability term이라고 부르는데, 이렇게 쪼개면 데이터 구조의 크기를 줄일 수 있다.
+- (실제 계산은 별로 안 중요.)
+- $p(x_1|z_1)$는 posterior probability임.
+	- 이제, $p(x_1)$이 상수라고 가정하자.
+	- 거기다가 $p(x_2|x_1)$을 곱하고 적분하면 다음 prediction을 얻을 수 있다.
+	- 확률적으로 다음 값을 예측한 것, 관측한 값을 동시에 이용해 다시 미래의 값을 예측한다.
+$$
+p(x_{t+1}|z_{1:t}) = \int p(x_{t+1}|x_t)p(x_t|z_{1:t})dx_t
+$$
+- 위 식은 결국 시점 $t$에서의 모든 점에서 시점 $t+1$의 특정 점 $x_{t+1}$으로 갈 확률을 전부 marginal하게 더한 거임.
+- sequential bayesian filtering의 예시는 다음과 같은 것들이 있음.
+	- kalman filter
+		- single gaussian distribution asumption을 추가해서 얻은 예측 기법이다.
+			- $p(z_t|x_t)$가 gaussian 분포이고, $p(x_t|x_{t-1})=Ax_{t-1}+b+\epsilon$에서 $\epsilon \sim N(0,\Sigma)$임을 가정.
+		- gaussian은 합성해도 다시 gaussian이기 때문에, posterior도 다시 gaussian 분포이다.
+		- kalman filter는 multiple hypothesis를 capture할 수 없음.
+			- non-parametric(machine learning 관례를 따른 용어) representation을 써서 해결가능. -> particle filtering
+	- particle filtering
+		- 이제 우리한테 pdf는 없다. 그냥 weighted sample의 집합으로 근사한다.
+			- 원하는 분포가 있으면 weighted sample set을 만들어서 해결한다.
+		- 달리 말해, $p(x_t|z_{1:t})$의 분포(density function)를 non-parameter(weighted sample)로 표현하는 것이다.
+		- sequential density estimation: 직전 프레임의 weighted sample을 이용해 현재 프레임 예측한다. 그걸 관측값으로 갱신해서 새로운 weighted sample set을 만들고 과정을 반복한다.
+			- 각 particle은 bounded box이다.
+			- video frame마다 patch를 얻고, 직전과 similarity 평가해서 가장 가까운걸 선택하는 방식으로 갱신한다.
+- appearance model: target 외형의 numerical representation
+	- 이미지 자체나 히스토그램. CNN으로 인한 결과 등이 해당한다.
+	- 강건한 long term tacking을 위해서는 online update가 필수적이다.
+	- 이 모델을 가지고 particle filtering을 하면 된다.
+		- 현재 appearance model(래퍼런스 이미지 자체, 히스토그램 등)과 observation $x_t$을 ㅣㅂ교해서 가장 비슷한 걸 찾으면 됨. 그렇게 되도록 likelihood $p(z_t|x_t)$를 학습한다.
+#### 13-2-1. Tracking by Detection
+- particle filtering 단점은?
+	- 물체의 appearance만을 보고 배경 clutter에는 관심이 없다.
+	- 즉, background object에 vulnerable함.
+	- 해결하는 법은 classifier를 만들어서 정확히 target만 잡아내는 거임.
+- online classifier learning: 현재 프레임에서 sliding window로 sample 뽑고, target과의 거리로 pos/neg sample 결정한다. 그걸로 classifier 업데이트하고, 그 classifier로 다음 프레임 예측한다.
+	- online SVM: 주어진 training 데이터 가지고 중요하지 않은 support vector(very low weight, lagrange multiplier) 제거하고 업데이트함.
+	- 일단 쉽다. 간단한 sliding window임. 그리고 particle filtering보다 sample 적게 만들어서 성능이 좋음.
+	- 하나의 hypothesis만 유지해서 drift에 취약하다. 또, threshold에 민감하다는 단점이 있음.
+	- appearance model이 그리 강력하지 않다면, hypothesis를 많이 만들어야 한다.
+### 13-3. Multi Target Tracking
+- 입력: object detection이 이미 완료된(bounding box가 주어진) 비디오 프레임들이 들어간다.
+- 출력: 각 object를 구분하고 그 trajectory를 만든다.
+- detection bounding box를 더 개선할 수도 있음. temporal smoothness를 이용한다.
+- 이미 bounding box는 전부 주어졌기에, 예측에 미래의 결과를 과거에 응용하는 것도 됨.
+- 아이디어는 그냥 bounding box 골랐을 때의 cost 합을 최소화하는 거임.
+- optimization은 integer linear programming을 해야 되는데, 이건 NP-hard이다. 따라서, 우회하는 여러 solver가 있음. (여기서는 자세히 안다룰거임)
+- offline alg.이기 때문에 online video는 분석할 수 없다.
+### 13-4. Deep Learning for Visual Tracking
+- target-specific saliency map estimation
+	- 일종의 particle filtering
+	- non-negative activation function
+	- linear SVM classification
+	- SVM의 dim이 
+	- 모든 dim이 nonnegative면, negative class를 classify하려면 weight가 negative가 존재해야 한다. 즉, classification에 주요한 영향이 있는 core dim이 무조건 negative weight여야 한다. (SVM에서 한번 말한거임)
+	- 따라서 positive weight가 들어가있는 dim은 target object와 굉장히 크게 영향이 있다.
+	- 그게 pretrained CNN에 backpropagate된다. 그걸로 gradient descent를 한다.
+	- 원래 GD를 parameter of NN을 한다. pixel space까지 그걸 backpropagate를 하면, pixel intensity value를 얻을 수 있다.
+	- 이러한 gradient가 크면, 픽셀을 조금 변경했을 때, target activation value가 크게 변한다는 소리임.
+	- 즉, gradient가 큰 영역이 target이 있는 부분일거임.
+	- class attribution technique, label efficient learning
+	- generative modeling approach를 취했다. 베이지안 이론에 의거한 그것.
+	- 주어진 generative model에 대해 target을 결정할 수 있다.
+	- 그걸로 새로운 groundtruth bounding box를 추론한다.
+	- online하게 SVM을 업데이트할 수 있음.
+	- low weight support vector를 삭제하는 방식으로 online manner로 학습할 수 있음.
+	- 각 픽셀마다 activation이 얼마나 sensitive한지를 측정할 수 있음. 굉장히 sensitive하면, 그게 target area임.
+	- $\phi^+$가 positive한 값만을 취하는 함수임.
+	- segmentation supervision을 제공하지 않았지만, segmentation mask를 그리는 능력을 가졌다.
+	- 물체 가림이 있을 떄 특히 유용하다.
+	- 이건 별로 clean한 파이프라인은 아니다.
+- fully conv. siamese network: 더 클린한 구조. 이 모델이 deep metric learning을 알려준 이유임.
+	- target에 대응되는 유일한 template가 존재한다.
+	- target은 작은 feature map이 된다.
+	- 이걸 video frame에서 가져온 모든 가능한 feature vector랑 conv.로 처리한다.
+	- resolution이 작은 result map이 나와서, 가장 correlation이 높은 위치를 찾을 수 있다.
+	- capability가 large scale data에서 온다.
+	- 옛날에는 large scale pretrained는 금지되었다. 약간의 치팅으로 생각함. 모든 tracking alg.가 그런 pretraining stage가 없었기 때문.
+	- 이때는 옛날이라서 AlexNet의 변종을 backbone으로 썼음.
+	- 여기서 제일 중요한 건 pretained임
+	- 모델을 더 이상 tune하지 않았다. 그렇지만, 잘함.
+	- CNN이기 때문에 GPU로 sliding window를 매우 빠르게 다룰 수 있다.
+- 요즘은 visual object tracking이 좀 지난 트렌드임.
+- 지금도 이 siamese network의 변종을 쓴다.
+- 이미지는 하나만 들어갔지만 강력한 backbone 모델이 다른 모습도 인식할 수 있게 한다.
+- 또한, temporal smoothness에 영향을 준다.. <- ??

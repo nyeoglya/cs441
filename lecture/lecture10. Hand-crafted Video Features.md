@@ -1,0 +1,102 @@
+### 10-1. Motion Analysis
+- motion 정보는 아주 중요하다. 엄청 대충만든 모션도 많은 정보를 줌.
+- 다음과 같은 작업에 쓰인다.
+	- 3d structure reconstruction
+	- video over segmentation
+	- object shape descriptor
+	- human action and activity
+	- improving video quality(motion stabilization)
+- motion 추정방법
+	- direct method: optical flow 같이 video frame 2개에서 motion을 추출. motion field가 dense하지만, appearance에 약하다. small motion을 가져오는데 유용하다.
+	- feature-based method: local feature를 추출하고 그걸 추적한다. motion field는 sparse하지만 robust하다. large motion을 추정하는데 유용하다.
+	- object tracking: object(bounding box)를 고르고 그걸 시간에 따라서 추적한다.
+### 10-2. Optical Flow
+- 지금부터는 흑백 이미지를 가정하자.
+- video는 $x,y,t$를 받고 intensity를 반환하는 3차원 함수.
+- 우리는 직전 프레임과 현재 프레임만을 이용해서 pixel level motion vector 찾는 것이 목적.
+- 각 픽셀에 intensity value를 이용함. pixel-wise motion vector를 계산하기는 적절하지 않다.
+- pixel correspondence problem: 두 이미지에서 픽셀 단위로 매칭하는 문제
+	- color constancy: 두 이미지 사이의 매칭할 점이 똑같아야 됨. grayscale에서는 밝기가 똑같아야 됨.
+	- small motion: 점이 너무 멀리 떨어지면 안됨.
+	- $I(x,y,t-1)=I(x+u,y+v,t)$라고 하자. 그러면, taylor expansion을 이용해 식을 $(\nabla_x I,\nabla_y I)\cdot(u,v)^T=-\nabla_t I$로 정리할 수 있다.
+	- 이때, 방정식 하나로는 u,v를 모르기 때문에, local window를 쓴다.
+	- local window: A 주변 픽셀은 모션 벡터가 같을 것이라 가정. 그러면, equation의 개수가 많아지기 때문에 문제를 풀 수 있다.
+	- rgb는 채널이 많지만, 대부분의 알고리즘은 흑백으로 바꾸고 처리하며, 싲레로 컬러로 처리한다고 해도, 신뢰성이 부족하다.
+- lukas-kanade flow: least square problem. pseudo-inverse 곱한다.
+	- $A^T A$가 마치 2nd moment matrix처럼 보인다. harris corner detection에 썼던 그거.
+	- 모멘트 행렬은 고윳값과 고유벡터가 중요하다. 둘은 local window에서 밝기 변화의 강도와 방향을 요약한다.
+	- optical flow가 안정적으로 계산되려면 $A^T A$가 다음의 조건을 만족해야 한다.
+		- invertible: $A^T A$의 모든 eigenvalue가 nonzero여야 함.
+		- well-conditioned: 작은 오차가 input에 더해졌을 때, 값이 크게 차이나면 안된다.
+			- $\lambda_1>\lambda_2$일 때, $\lambda_1/\lambda_2$가 너무 크면 안된다는 뜻
+		- element가 너무 작으면 안된다
+			- eigenvalue가 커야 한다는 뜻
+	- 위 3개 조건은 harris corner detection의 조건이기도 하다.
+	- 결론적으로, corner point가 아닌 곳에서는 motion flow의 계산이 제대로 안된다.
+	- 반대로, corner들은 계산이 잘 된다.
+	- 그렇기에, 보통 평평한 부분을 nearby motion vector의 interpolation으로 계산한다.
+	- 잘 탐지하려면, corner를 우선 탐지해야 한다. 그리고 그걸 대상으로 motion flow를 계산하면 됨. 그래야 inverse를 계산할 수 있음.
+### 10-3. Video Recognition
+- video recognition은 representation 단계에서 추출한 특징 벡터를 입력으로 받아, 다양한 작업을 수행하는 것.
+- video recognition(=action recognition): human action classification.
+- 보통은 사람의 움직임에 관심이 있다. 대부분의 영상이 사람의 움직임이랑 관련이 있기 때문.
+	- 비디오가 사람이나 동물 같은걸 포함하지 않는다면, 그걸 가지고 딱히 모션을 인식할 게 없음.
+	- 그냥 image recognition model만 있으면 됨.
+- 보통 다음의 순서로 진행된다.
+	- feature extraction(==여기에 집중할거임==): sparse local point, dense trajectory, human pose
+	- video representation: bag of visual word, bag of visual phrases
+	- classification: SVM, boosting, nearest neighbor
+### 10-3-1. Framework before Era of Deep Learning
+- feature extraction
+	- STIP (Space-Time Interest Point): spatio-temporal domain의 corner 찾는다. corner는 어디로 움직이던 간에 큰 차이 만들기 때문.
+		- 2d corner 확장판임. $x,y,t$를 이용하기에 2nd moment matrix(=structure tensor)가 3x3이 된다.
+		- 3차원 corner는 시간에 따라서 움직여도 큰 차이를 보이는 것들임.
+		- 원래는 $xy$축 방향으로만 변동을 줬었는데, 그걸 시간에 따라서도 변동을 주는 것이다.
+		- corner이지만 scale value를 갖는다. blob detection도 하기 때문이다. (이건 자세히 설명은 안 함)
+	- STIP descriptor(spatial descriptor)
+		- HOG(histogram of gradient)와 HOF(histogram of optical flow)을 동시에 붙여서 표현.
+		- 즉, local appearance와 local motion을 동시에 판단하도록 한다.
+- video representation
+	- bag of visual word: STIP으로 만든 video interesting point를 고차원에서 클러스터링.
+		- 각 클러스터마다 하나의 visual word를 할당한다.
+		- test video 주어지면 interesting point 찾고 visual word histogram 만들어서 그걸로 판단.
+	- spatio-temporal pyramid
+		- 전체 비디오를 점진적으로 분할하면서 각 영역에서 특징을 추출하면서 3차원 피라미드를 만든다.
+		- 분할된 각 cell 내에서 HOG, HOF를 이용해 특징 벡터(multi channel representation)를 추출한다. 그리고 그걸 합친다.
+		- 채널은 다음과 같다. 특징의 종류임.
+			- HOG(외형 특징): 각 프레임마다 2D HOG를 계산하고, 평균내거나 연결한다. 객체나 영역이 가진 평균적인 공간적 정보를 담는다.
+			- HOF(움직임 특징): 인접한 프레임 쌍에 대해 계산하고, 히스토그램을 만든다. 셀의 시간적 범위 내에서 발생하는 움직임 패턴을 요약해서 담는다.
+		- 분할을 많이 할수록 특징 벡터가 길어지며, 비디오 내 위치 정보(structural info)를 더 잘 포함한다.
+		- 이러한 분할은 manual하게(사람이 직접 분할을 정함) 이루어진다.
+- classification
+	- 보통 SVM을 수행한다.
+		- kernel을 이용해 non-linear separation을 수행한다.
+		- metric relation(similarity measure): kernel 함수는 두 데이터를 고차원에서 얼마나 유사한지 측정하는 도구임.
+		- $K(x_i,x_j)=\phi(x_i)\cdot\phi(x_j)$로 계산되는데, 여기서 내적이 유사도를 측정하는 역할.
+		- kernel trick은 $\phi$ 함수 없이 바로 $K$를 써서 저차원 입력 $x_i, x_j$의 내적 값을 바로 계산하는 것을 나타내는 용어.
+		- SVM이 이 커널 값을 사용해서 데이터 분류하는 초평면을 찾는다. 분류 경계를 고차원적인 유사성에 기반해서 계산해준다.
+	- RBF-$\chi^2$ kernel: video representation의 결과인 multi-channel histogram을 효과적으로 다룸.
+		- 기본적으로 카이제곱 거리를 기반으로 유사도를 측정. 거리가 클수록 커널 값(유사도)이 0에 가까워진다.
+		- 두 히스토그램 $x^c_i, x^c_j$ 사이의 거리를 카이제곱 거리를 계산한다. ($c$: 채널, $i, j$: cell 번호임)
+		- 그리고, 각 채널을 카이제곱 값으로 나눈다. 이건 정규화해서 채널별 거리 스케일을 없애주는거임.
+#### 10-3-2. Dense Trajectory Descriptor
+- sparse feature point(corner 찾기) -> dense feature point(모든 점에서 정보 찾기). 사실 이건 별로 성능에 기여하지 않음.
+- point보다 trajectory를 찾게 하는 것이 더 낫다는 걸 알았다. 이건 큰 큰 기여를 했음.
+- 모든 motion 정보는 아주 rich한 정보를 갖는다. 이건 상당히 useful함.
+	- 각 spatial scale에서의 dense sampling(step을 정해놓고 그 간격으로 점을 찍음)
+		- structure tensor의 eigenvalue가 특정 임계값보다 작은 것들은 제거함(밋밋한 곳이라 정보가 별로 없음)
+	- 주어진 시작 점을 하나씩 각 spatial scale마다 따로 추적한다.
+		- 우선 dense optical flow를 계산하고, 중앙값 필터를 사용해 이상치를 줄인다.
+		- $t$부터 $t+L+2$까지 추적함. $L$은 궤적의 길이를 나타내는 파라미터임.
+		- 궤적 길이를 $L$로 제한하는 이유는 추적 오차가 누적되면 객체 움직임을 제대로 추적할 수 없기 때문이다.
+		- 이런 궤적은 하나의 local feature이다.
+		- motion compensation: 개선된 모델인 iDT에서는 여기서 optical flow를 추가로 사용해서 카메라 움직임과 같은 배경 움직임을 제거해서 객체의 움직임만을 포착한다.
+	- trajectory description: HOG, HOF, MBH를 이용함.
+		- 궤적 위치 변화량을 전부 나열해서 긴 벡터를 만들고, 그걸 정규화한다. 이는 순수한 움직임 방향 및 모양 패턴을 포착하게 한다.
+		- MBH(motion boundary histogram): HOF의 그레디언트를 계산해서 움직임의 변화나 움직임의 경계를 포착한다.
+			- 사람은 다른 body part가 있지만, 모션이 uniform하다면, motion boundary가 사람의 몸을 아주 깨끗하게 감싼다.
+			- 카메라가 일정한 속도로 움직이면 MBH가 0이다. 반면에 움직이는 객체는 높은 값으로 남아있는데, 이는 움직임의 경계선이 더 명확하게 보이는데 기여한다.
+			- 정해진 점만 찾기는 어렵지만, 사람 자체를 따라가면서 찾는건 간단하다.
+	- 완성한 descriptor를 visual word로 만들고, video마다 visual word histogram을 만든다.
+	- 마지막으로 SVM과 RBF-$\chi^2$ 커널을 써서 classification한다.
+- 딥러닝 때에도 dense trajectory는 일부 승리를 거두었다.

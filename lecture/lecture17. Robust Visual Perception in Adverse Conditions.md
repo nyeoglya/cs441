@@ -1,0 +1,97 @@
+### 17-1. Introduction
+- 5년 전에도 많은 논문들에서 자기들 ai가 사람들의 능력을 넘었다는 말이 나왔다.
+- 이런 모델들은 잘 정제된 환경에서 살아왔음.
+- 우리의 목적은 ai agent가 물리적인 환경에서 우리와 함께 일하는 것이다.
+	- 즉, real world environment에서도 작동해야 됨.
+	- 모델들이 이런 경우도 해결할 수 있도록 sufficiently robust한가? 아님.
+	- self-driving car가 어두운 터널에서 bicycle을 친다거나 하는 문제들이 생김.
+- 많은 factor가 있음.
+	- adverse weather
+	- fire and smoke
+	- nighttime(low-light)
+	- over-exposure
+	- blur
+	- obstruction
+- image restoration as preprocess(computer photography)
+	- dehazing(뿌연걸 삭제)
+	- deraining(비 삭제)
+	- low-light image restoration
+	- 문제점
+		- down-stream perception task에 optimized되지 않음.
+		- computation heavy
+		- 알고리즘 하나가 문제 하나만 해결 가능
+- 연구 방향
+	- computational overhead 없이 adverse condition을 해결.
+- challenge: 일단 data 얻기가 어려움. 그리고 labeling도 어려움. dense fog image나 night vision image는 굉장히 비슷함. 사람도 label 잘 못함.
+- 각 논문이 해결한게 중요한게 아님.
+- 중요한 건 학습 데이터의 제약조건이 점점 줄어든다는 거임.
+### 17-2. Pose Estimation under Extremely Low Light Condition
+- sensor 자체도 노이즈가 있음.
+- 너무 어두운 빛이 들어오면, 이런 센서의 노이즈가 극대화됨.
+- 그래서 그냥 값을 증폭하는 거만으론 사진의 밝기를 키울 수가 없음.
+- training data는 low-level data, original data를 동시에 주면 된다.
+	- geometrically aligned data
+	- 그래픽스 연구실과 협업함.
+	- camera system을 개발했음. 빛이 2갈래로 쪼개져서 하나는 빛이 1%만 들어오고, 나머지 하나는 전체 데이터가 들어옴.
+	- physically simulated low-light images
+	- 밝은 데이터에서 사람 포즈를 측정하고, 그걸 어두운 영역으로 넘긴다.
+	- 동영상 형태로 찍어서 많은 데이터를 얻는다.
+- low-light network, well-lit network를 동시에 학습한다.
+- well-lit 데이터가 low-light image에서의 정보를 담고 있기 때문.
+- 다른건 똑같고(파라미터 공유), batch normalization statistics만 다르다.
+- 이렇게 하면 sharing을 maximize하면서도 각각 학습시킬 수 있다.
+- gram matrix: channel wise correlation of single conv. feature map.
+	- input style을 represent한다.
+	- knowledge distilation에서도 모델이 원본의 grain matrix를 모방하여 스타일을 가져오는 것이 가능하다.
+- domain adaptation
+- low-light로 학습되었지만, 그냥 평상시 이미지도 잘 탐지한다. 다른 low-light model들은 평상시 이미지를 제대로 탐지를 못함.
+### 17-3. Foggy Scene Segmentation
+- 데이터를 얻기가 아주 힘들다. 그리고 real world는 fog density가 uniform하지 않고 임의로 조절하기도 힘듦.
+- 따라서, foggy scene을 시뮬레이션하는 foggy champer를 만들었음.
+- 기존 방법들은 foggy scene generation module을 만들어서 원본 이미지에 적용해서 데이터들을 얻었음.
+	- city 이미지를 많이 썼는데, dense label이랑 depth 맵을 제공했기 때문이다.
+	- fog는 depth에 영향을 받는다. 카메라랑 물체의 거리가 멀수록 더 뿌옇게 보이기 때문이다.
+		- depth를 이용해 합성이 가능함.
+	- 합성된 이미지와 진짜 fog image까지 썼음.
+	- curriculum adaption을 사용한다. 쉬운 거부터 학습을 시작해서 나중에 어려운 걸 학습하는 방법.
+		- 상당히 유명한 방법임.
+	- performance가 진짜 real image에서는 별로 안 좋았음. performance drop이 심각함.
+	- 또, curriculum을 이용하는 hyperparameter를 매우 세밀하게 정해야 됨.
+- 새 모델은 3개 데이터를 동시에 받음.
+	- 깨끗한 이미지, 합성된 fog, 진짜 fog
+	- 그걸 segmentation 모델을 돌려서 feature map을 얻고, fog factor를 추출한다.
+	- fog factor가 fog factor space에서 구분이 불가능하게 만든다.
+	- 거기다 gram matrix extraction을 했음. fog image는 image style에 영향을 받기 때문에, 이걸 쓰는건 의미가 있다.
+	- geo location에도 사실 영향을 받음.
+	- metric learning을 이용해서 fog condition이 다르면 멀어진다.
+	- 이렇게 하면, fog condition을 얻는데 유용하다.
+	- GAN이랑 비슷한거임.
+	- segmentation network가 fog condition을 속이는 걸 목적으로 학습함.
+### 17-4. ???
+- 이전꺼의 아이디어는 fog condition space를 학습하고, 그걸로 distriminator로 이용하는 것이다.
+- fog factor space는 condition embedding space임.
+- 17-3이랑 거의 비슷한데, vision transformer에 붙일 수 있는 module을 제공함.
+### 17-5. Promptable Segmentation under Multiple Unseen Adverse Conditions
+- SAM은 아주 잘 하지만, adverse condition에 robust하지 않다.
+- RobustSAM: SAM을 개선한 버전이 이미 있음. 다행히도 방법에 큰 제약이 있었다.
+	- 적은 데이터만 가지고 파라미터 튜닝하는건 매우 위험하다.
+	- 그래서 antidegradation module을 추가함.
+	- 깨끗한 이미지에서 시작해서 뿌연 이미지를 생성한다.
+	- SAM 학습시키는 것처럼 했음.
+	- SAM을 하나 더 써서, 합성 전의 원본 이미지의 정보를 전달해줬음. 그걸로 teach함.
+	- 단점
+		- training에 clean-degraded image pair가 있어야 됨.
+		- 이런 데이터를 얻는 건 힘들다.
+		- 그래서 학습 데이터에만 의존함.
+		- 어떤 real degradation image도 학습시키지 않았음.
+- LoRA를 도입함.
+- SAM+LoRA만 있어도 아주 강한 모델임.
+- LoRA의 rank가 매우 중요함. low-rank가 뭔가 불필요한 noise를 없애버리는 역할을 한다고 믿고 있다.
+- 학습이 덜 되면, 더 공격적으로 rank를 낮춰서 노이즈를 더 없애야 됨.
+- 샘플에 따라서도 rank가 영향을 받는다. rank oracle은 각 샘플마다 가장 잘 맞는 rank를 고른거임. 일종의 cheating임. 하나의 upper bound.
+- rank 1 component를 만들고, 더하면서 higher rank를 얻는다.
+	- GaRA: rank 8을 rank 1 8개로 쪼갠다. 그리고, 그러한 8개 행렬 중 몇 개만 더하는 방법을 씀. gated LoRA임.
+- 중요한 건, 실제 데이터셋으로 finetune하는 경우에 굉장히 좋은 성능을 제공했다는 점이다.
+### 17-6. Three Themes
+- perception, camera, data가 전부 중요하다.
+- 수업 시간에는 거의 perception만 다뤘음.

@@ -1,0 +1,126 @@
+### 16-1. Foundation Model
+- foundation model: 엄청 큰 데이터셋을 이용해, self-supervision으로 학습된 모델.
+	- self-supervision인 것은 학습 데이터를 전부 label하는 건 불가능하기 때문.
+	- 다른 downstream task에 사용되기 위해 adapted(ex: finetune)될 수 있다.
+	- 원래 4가지 서로다른 작업을 하고 싶으면 모델 학습을 4번 해야 되는데, 그냥 foundation model 1개만 가지고 finetuning, zero-shot, few-shot 등등 하면 됨.
+	- 다양한 데이터와 큰 파라미터, 많은 데이터로 학습시킨다.
+	- pretraining 파트가 중요함.
+	- GPT: language task에서 사용하는 foundation model이다.
+- MAE(masked auto encoding), CLIP, DINO 등의 self-supervision 기법을 사용한다.
+- Foundation models in vision
+	- discriminative models (e.g., CLIP, SigLIP) -> 지금까지 한 것.
+	- generative models (e.g., Stable Diffusion) -> ==이건 설명하지 않을 거임. 이 lecture에서 다루기에는 어려움이 있다.==
+	- vision-language models: vision-language multimodal task을 푸는데 특화됨. (e.g., Flamingo, BLIP-2, LLaVA)
+	- segmentation models: segmentation에 특화됨. (e.g., Segment Anything)
+### 16-2. Discriminative Foundation Model
+- CLIP이 왜 foundation model이 될 수 있는지?
+	- 웹 크롤링한 데이터셋을 가지고 contrastive learning으로 학습되었다.
+	- 이러한 scaling으로 인해, generalization 능력을 향상시킬 수 있음.
+	- 그래서 많은 discriminative task에 사용될 수 있다.
+		- 사용된 모델을 가지고 classification을 할 수 있음. training에 class label이 관측되지 않았지만.
+	- text corpus에서 주어진 rich info가 이러한 generalization을 가능하게 한다.
+	- text prompt만 가지고 많은 image classification task에 사용할 수 있음.
+	- 흥미롭게도, CLIP VIT-L은 ImageNet을 목적으로 만들어지지 않았음에도 불구하고 ImageNet으로 학습된 ResNet101 같은 모델들과 같은 성능을 낸다. 물론 CLIP은 ResNet101보다 훨씬 더 크고, 데이터도 많이 넣음.
+### 16-3. Vision-language Foundation Models
+- CLIP과 SIgLIP이 vision-language foundation일까? 왜 이 카테고리에 포함되지 않을까?
+	- 왜냐하면, 이 섹션은 vision-language foundation model은 vision-language task에 잘 사용되는 것들을 모아놓은 것이기 때문이다.
+		- vision language dialog 등등
+	- CLIP, SigLIP은 language part에 제한이 있어서, 이런 것들이 전부 자연스럽게 되는건 아니다.
+- BLIP은 image text matching, contrastive learning 등등 다양한 capability를 갖는다.
+- Flamingo
+	- google deepmind에서 나온거임.
+	- VLM인데, few-show adaptation ability.
+	- vision encoder랑 LM을 갖고 시작한다. froze해서 이건 더 이상 학습하지 않음.
+	- finetune할 때 이것도 같이 학습해버리면 biased되어 강력한 generalization을 잃어버릴 수 있기 때문.
+	- perceiver resampler랑 gated cross-attention을 사용한다.
+	- 둘을 이용해 frozen unimodal model을 합친다.
+	- perceiver resampler: 이미지를 가지고 vision encoder가 임베딩을 만들면, 그걸 가지고 크기가 정해진 set of visual token을 만든다.
+		- 이렇게 만들어진 토큰들이 LM 쪽에 feed된다.
+		- 그냥 token을 넣으면 align되지 않은 상태이다. 즉, token이 다른 space에서 오게 됨.
+		- 이 차이를 매워주는 것이 perceiver resampler이다.
+	- gated cross-attention layer: language generation process을 제어한다.
+		- 각 text가 vision token에 영향을 받는다.
+		- 그 결과가 LM block에 들어간다.
+	- 지금은 straightforward하지만, 이 당시에는 새로운 거였음. technical contribution.
+		- perceiver resampler가 이미지를 정해진 크기로 압축하기에 임의의 길이의 이미지/비디오를 넣을 수가 있음.
+		- 또한, vision과 language를 합칠 수 있음.
+	- tanh gating: $\tanh(\alpha)$를 곱해서 학습 초기에는 vision token이 큰 영향이 없게 한다. $\alpha$는 0부터 시작해서 점점 커지는 파라미터임.
+	- vision encoder: pretrained with CLIP-like objective
+	- text encoder: chincilla models
+	- training detail을 알고 싶으면 paper를 참고해라.
+	- flamingo는 finetuning 없이 6개 task에 대해 당시 SOTA 모델들을 앞섰다.
+- BLIP-2
+	- BLIP과 동일한 철학. language only model, vision only model(잘 학습된 unimodal model)들을 가지고 시작한다.
+	- LLaMA 같이 잘 학습된 language model이 이미 있음.
+	- 복잡한 task를 푸는게 목적인데, 좋은 vision-language 데이터를 찾기 어렵다.
+		- vision QA 같은 걸 풀 때는 좋은 데이터가 필요하다. image와 관련한 diaglog를 100만개씩 찾기는 어려움.
+	- 그렇기에, unimodal 모델을 가지고 둘을 어떻게 연결할지가 관심사임.
+	- q-former: querying transformer
+		- image transformer: perceiver 같은거임. learnable query를 쓰는데, 이건 perceiver의 내용과도 일부 비슷함.
+		- text transformer: perceiver랑 다른 부분.
+		- 즉, q-former는 image, vision 데이터를 동시에 본다. image transformer가 text transformer와 coupled됨.
+			- 두 transformer가 self attention을 공유함.
+			- 즉, learned queires를 text transformer의 self attention도 볼 수 있음.
+		- 유용한 visual info를 LLM에 넘겨주는 역할.
+			- 반면에, perceiver는 그냥 범용 vision info compressor임.
+		- image text matching은 binary classification임. 이걸 잘 풀려면, 2개의 transformer는 attend to each other.
+			- q, T에 masking이 없다.
+		- image-grounded text gen: language modeling strategy를 그대로 따라간다. BERT 같은거임. NSP로 학습시키면, attention strategy를 그대로 따라감.
+			- bidirectional attention을 허용하면, LLM이 cheat한다. 미래의 것을 따라가기 때문. 그래서, 미래의 데이터를 mask한다. look ahead masking이라고도 불린다.
+		- unimodal self-attention: CLIP과 BLIP을 그대로 따라간다. 각각이 useful info를 얻기 위해 최선을 다한다. attend to each other 하지 않고, 자기자신만 attend한다.
+		- BLIP도 parameter를 공유했고, 3가지 작업을 수행했기 때문에 BLIP과 비슷하다.
+	- generative pretraining with frozen LLM: q-former의 결과를 FCL에 넣는다. 그리고, 그 결과를 LLM decoder에 넣어서 문장을 생성한다.
+		- 여기서 FCL만 학습된다. 이렇게 하면 frozen LLM이 이제 문장을 더 잘 생성할 수 있다.
+	- bootstrapping: model in the loop. image label이 개선된다. qformer의 mismatched image-text pair를 찾기 위해 image-text matching capability가 쓰인다. 그리고, image-grounded text generation이 개선에 쓰인다.
+	- 이렇게 개선된 데이터로 BLIP2를 다시 학습한다.
+- LLaVA: LLaMA + CLIP
+	- tuning을 하는게 목적이다. SOTA를 만드는게 목적이 아님.
+	- LLM은 next token prediction에 쓰인다.
+	- LLM은 sequence of word를 자연스럽게 연결되게 만든다.
+	- 간단한 LLM은 언어를 이해하는게 아니라 자연스럽게 연결되게 하는 것이다.
+	- instruction tuning은 실제로 instruction을 이해하게 하는걸 목적으로 삼는다.
+	- q-former에 비해서는 엄청 작은 linear projection layer를 추가함.
+		- language model을 finetune하면 됨.
+		- instruction following capability를 얻게 하기 위함.
+		- finetune 때문에 layer 추가는 엄청 작은것만 하면 되는거임.
+	- 만약 데이터가 편향되었다면, LLM도 영향을 받게 된다.
+	- CLIP의 마지막에서 2번째 output을 사용함. 그리고 class token은 사용하지 않았다.
+	- 이런 결과는 결국 vision aware soft prompt이다.
+### 16-3. Segmentation Foundation Models
+- SAM(segment anything model): segmentation을 엄청 큰 데이터에서 한다. semantic entities도 겁나 많음.
+	- 모델은 그냥 아무 객체에 대해서 segmentation을 할 수 있는 능력을 얻는다.
+	- point prompt, bounded box prompt, rough bound box, text prompt 등 모든 종류의 user interaction을 처리한다.
+	- 한가지 기여는, 엄청 큰 segmentation dataset을 만든 것이다.
+		- 11M image 1.1B segmentation mask
+	- sam1은 이미지만 segmentation 했는데 sam2는 비디오도 처리함.
+	- data engine을 만들어서 이런 데이터셋을 만들었다. 이걸로 학습시켰음. train model이 강한 zero shot 능력을 갖는다.
+	- promptable segmentation task: 새로운 종류의 task.
+		- 모델이 어떤 종류의 prompt와 input image를 받는다.
+		- 그러면, 모델이 그거에 해당하는 segmentation을 받는다.
+	- sam3(일주일 전에 나옴): text prompt를 다룰 수 있음.
+	- powerpoint도 이미지 segmentation을 할 수 있음. positive point/negative point를 클릭하면 분리해줌. powerpoint에 들어있는 건 random field 모델을 이용해 optimization을 하는거임. 당연히 성능이 별로 안좋음.
+	- 생긴게 특별하지는 않음. 데이터셋을 만든게 대단한거임.
+	- 주어진 이미지가 ViT 인코더에 들어가면 token이 되고, prompt가 prompt encoder에서 변환되고, 그게 이미지 데이터랑 상호작용하면서 classification이 된다. segmenter랑 비슷한거임.
+	- 이미지 인코더는 MAE pretrained ViT을 사용함.
+	- point, box 등은 positional embedding 되어서 들어간다. 이건 learnable하다. 이에 학습 시에, 위치 정보를 활용하게 된다.
+	- mask는 conv layer를 이용해 처리된다.
+	- text는 CLIP에서 가져온 인코더를 쓰는데 이 paper에서는 별로 안중요함.
+	- ambiguity issue: point prompt의 경우, 만약 물체의 특징 지점을 눌렀다면 정확히 어디까지 하나의 물체로 취급해야할지 알기 어려움. 사람도 이런건 잘 다루지 못함.
+		- 여러 개 segmentation mask가 나오면, multiple segmentation head가 그냥 그걸 다 보여준다. 각각의 head가 다르게 초기화되고 학습되어, 다른 결과를 내놓는다.
+		- 이런걸 multi-choice learning이라고 부른다.
+	- segment anything data engine: 데이터셋 형성에 사람과 모델이 둘 다 영향을 준다.
+		- data engine을 3단계로 나눔.
+			- 1단계는 annotator가 많은 segmentation 데이터 셋을 제공해야 한다.
+			- 2단계는 ...
+		- 사람은 어려운 데이터셋만 다루고, 모델은 쉬운 데이터셋만 다룬다.
+		- 언젠가는 모델이 전부 다 다룰 수 있게 됨.
+		- 옛날에는 이런 걸 안 좋아했음. ai 모델의 성능에 회의감이 있었기 때문에.
+		- 이제는 이게 더 나음. ai가 사람보다 모델을 잘 만들기 때문.
+		- ai가 사람의 역할 없이 스스로 학습할 수 있다.
+- sam2: video domain에서 작동한다.
+	- tracking을 구현하기 위해 memory module을 도입한다.
+	- first frame의 타겟을 계속 추적하는 것이 가능하다.
+- sam3: 너무 최근에 나와서 기술 보고서만 있음.
+	- 이제 text prompt도 자연스럽게 처리한다.
+	- sam3는 하나의 text prompt가 관련된 모든 instance를 처리한다.
+	- 기존 sam들은 텍스트 프롬프트가 1개의 instance만 처리하였다.

@@ -1,0 +1,85 @@
+- Note: 이 파트는 빠르게 넘어감.
+### 7-1. Classification  Network
+- ImageNet Large Scale Classification Challenge
+- classification은 매우 중요함. 많은 다른 vision task들에 쓰임(backbone model). 
+### 7-2. CNN Architectures
+- LeNet-5: 굉장히 단순한 CNN 아키텍쳐. 얀 르쿤이 만든 거.
+- AlexNet: LeNet과 생긴건 매우 비슷하지만, 더 많은 layer/데이터와 ReLU/dropout을 사용해서 개선함.
+	- • local response normalization(LRN)을 추가함. (별로 안 중요한 내용임)
+- VGGNet: modern CNN 아키텍쳐. AlexNet의 LRN 없이도 더 좋은 성능을 냄.
+	- 3x3 conv. filter랑 2x2 max pooling, 그리고 FC layer로만 구성됨.
+	- 큰 conv. 필터를 쓰는 대신에 작은 필터를 여러개 넣는 전략을 사용한 거임. 이렇게 하면 파라미터 수는 줄어드는데 receptive field 크기는 충분히 크게 유지할 수 있음.
+	- 깊은 층은 더 많은 비선형성을 제공함.
+	- 깊은 network을 학습시키기 위해, 일단 얕은 layer를 gaussian으로 초기화하고 학습시킨 뒤에 사이에 layer를 끼워넣어서 더 학습시켰다.
+- ResNet: 깊이가 깊을수록 더 좋은 성능을 낸다는 것을 알았다. 깊을수록 더 많은 feature를 학습하기 때문. 그래서 152개로 만들어버림.
+- 깊이를 늘려서 생기는 문제점들: forward response와 backward gradient가 vanish or exploed된다.
+	- sigmoid는 backward gradient를 빠르게 작아지게 함.
+	- ReLU를 쓰거나, 적절한 initialization을 쓰면 해결 가능하다.
+	- ReLU랑은 He init.이 궁합이 좋음.
+	- batch normalization을 써도 해결이 가능하다.
+#### 7-2-1. Batch Normalization
+- internal covariate shift(ICS): 딥러닝에서 모델 훈련을 어렵게 만드는 현상.
+	- covariate shift: 훈련 데이터 분포와 실제 데이터 분포가 다를 때 발생하는 문제.
+	- 이 현상이 각 레이어에서 발생한다는 의미임.
+- 문제점
+	- $t$번째 iteration에서 forward propagation 후에 backward propagation한다.
+	- 데이터 학습하면서 이전 layer distribution 변하면, $t+1$ iter.에서 다음 layer에 이전 layer의 출력으로 다른 분포를 가진 데이터 입력이 들어온다.
+	- 이러한 영향에 의해 학습 속도가 느려진다.
+- batch normalization(BN): 계층 출력이 ReLU에 닿기 전에 mini-batch 단위로 평균이 0, 분산이 1이 되도록 normalize한다.
+- 요즘은 잘 안 쓰고, vision transformer에서는 특히 안 씀.
+- convolution layer에서는 batch normalization이 매우 중요함. 여기서는 batch normalization의 파라미터가 수렴에 크게 영향을 준다.
+- 후속 연구로 인해, batch normalization이 optimization landscape(손실 함수의 곡면)를 부드럽게 만들어서 돕는 거라는 것이 밝혀졌다.
+	- 알고봤더니 ICS에는 별로 도움이 안됨.
+#### 7-2-2. Residual Network (ResNet)
+- degradation problem: model이 깊어질수록 optimize가 어려워진다. 그러면 성능이 오히려 안 좋아짐.
+	- 사실 깊은 network의 모든 extra parameter가 0이면 얕은 network를 모방하기에, 모델 자체의 문제는 아니고 최적화의 문제라고 추론해볼 수 있다.
+- 가설: 깊은 네트워크가 얕은 네트워크보다 나쁘지 않다면, 추가한 레이어들이 항등 함수처럼 역할을 해야 한다.
+	- 그러나, 이 항등 함수를 학습하는 것조차 매우 어렵다는 것이 실험적으로 확인되었다.
+- residual learning: 위의 가설을 해결하기 위해, 문제를 $F(x)=H(x)-x$를 학습하는 걸로 바꾼다. 최종 출력은 $F(x)+x$로 한다.
+	- 만약 추가한 레이어들이 항등 함수로 동작한다면 잔차는 0이다. $F(x) \approx 0$을 학습하는 건, $H(x) \approx x$를 학습하는 것보다 훨씬 쉽다.
+	- 잔차 연결로 인해 기울기 소실도 완화되었다. 역전파 시 오차가 다음 레이어로 전달되는 지름길이 생겨 기울기가 쉽게 사라지지 않는다.
+	- 항등 경로에서 온 기울기 1이 기울기가 소실되어도 오차 신호가 전체 네트워크를 통과하도록 돕는다.
+	- 만약 레이어가 복잡한 변환을 수행한다면 $F(x)$가 0에서 크게 벗어난다. 이 경우에도 기울기 소실 문제가 완화되는 장점은 여전히 남아있으며 복잡한 변환의 경우 원래 $H(x)$도 마찬가지로 복잡했을 거라 크게 손해보는 건 없다.
+- 모델의 구조는 다음과 같다.
+	- 맨 처음 conv. 레이너는 7x7, 나머지는 전부 3x3 크기다.
+	- 각 레이어마다 batch normalization이 들어감.
+	- 마지막에 FCL이 없다. 그냥 mean pooling으로 output vector 평균냄.
+	- dropout이 없다. 원래 dropout은 MLP에 썼는데, 여긴 그게 없으니까 필요없음.
+	- filter 수가 주기적으로 늘어나면서 stride 2로 downsampling된다.
+- 각 residual block을 깊게(하나의 블럭에 들어있는 레이어 수 늘리기) 만들면서, conv. 필터 크기 조절하면, 복잡성은 늘리고 연산량은 비슷하게 유지할 수 있다.
+- 총 152 레이어인데, 이렇게 전체 레이어를 깊게 만들어도 VGG보다 연산량은 적음.
+- 일종의 앙상블 모델임.
+	- 하나의 잔차 연결을 직전 얕은 모델의 출력값과 다음 얕은 모델의 출력값을 합치는 것으로 생각할 수 있기 때문.
+- DenseNet: ResNet 후속작.
+	- 모든 얕은 모델의 조합에 residual connection을 전부 만든다.
+	- 더 효율적인 연산이 가능하고, 파라미터 효율성도 올라감.
+- SENet: 채널간의 관계를 명시적으로 모델링하는 SE 블록을 추가함.
+	- 네트워크가 어떤 feature map에 가중치를 두어야 하는지 학습시켜 성능을 향상시킴.
+	- squeeze, excitation에 의한 channel attention임.
+	- squeeze: input feature map을 하나의 feature vector로 만드는 과정.
+		- global average pooling(GAP)을 사용함. 평균하여 channel descriptor 벡터를 만든다.
+	- excitation: squeeze된 정보를 기반으로 채널별 중요도(attention)를 결정하고 그에 해당하는 가중치를 생성함.
+		- 2개의 FCL을 쓴다. 각 FCL이 차원을 줄이고, 차원을 복원하는 것을 담당함.
+		- 채널 수를 줄이는 과정은 복잡도를 낮추고 일반화 성능을 높인다.
+	- 최종적으로 reweight 과정을 통해 각 채널에 가중치 벡터를 곱한다.
+### 7-3. Vision Transformer
+#### 7-3-1. Transformer
+- CNN과 좀 다름. 원래는 NLP를 위해 만들어진거임.
+- self-attention: 문장의 단어가 자기자신의 문장 내의 연관된 단어들을 얻는 과정.
+	- Q: 질문
+	- K: 정보 색인
+	- V: 정보 실제 내용
+	- 예: 모델은 단어 w의 쿼리 Q를 가지고 모든 단어의 K와 비교한다. 그러면 관련이 높은 정보가 큰 값이 됨. 큰 값을 V에서 많이 가져오는 거임.
+	- 단어별로 Q, K, V 벡터가 다름. 단어 토큰에 가중치 행렬을 곱하면 얻어지고, 걔네들을 내적하면 됨.
+- positional encoding: input sequence의 위치가 self-attention에는 반영되지 않기 때문에, 이를 명시적으로 반영하기 위해 값을 더해준다.
+#### 7-3-2. Vision Transformer
+- input 이미지를 겹치지 않는 patch로 분할한 뒤에, 각각을 individual token으로 취급해서 넣는다.
+	- linear embedding: patch를 linear projection하여 하나의 선형 vector를 만드는 과정. 이게 input token이 됨.
+	- linear embedding에 positional encoding 한다.
+- transformer 구조의 인코더만 사용한다.
+- 이미지 데이터 앞에 붙는 extra 임베딩인 `[class]`가 있다. 이 임베딩 벡터에 이미지의 의미 있는 정보를 모아서 최종 결과 1개를 낸다. 그러면 이걸 classification에 활용할 수 있음.
+- inductive bias: 모델이 훈련 데이터에서 관찰하지 않은 입력에 대해 결과를 예측하기 위한 제약 조건. 데이터를 해석하는 선호도 같은 거임.
+- CNN과 비교하여 ViT의 장점은 다음과 같다.
+	- CNN보다 input data의 locality를 잘 보존한다.
+	- CNN에 비해 inductive bias가 적다. 그러나, transformer도 데이터 많이 학습시키면 inductive bias가 생긴다.
+	- CNN은 feature vector의 receptive field가 고정이다. CNN의 inductive bias가 여기서 나온다. 근데 어떨 때는 feature vector가 자신의 receptive field 넘어서는 영역의 데이터를 활용해야할 때가 있다. 이건  CNN에서는 안되고 ViT에서만 되기에, ViT가 성능이 좋은 것이다.

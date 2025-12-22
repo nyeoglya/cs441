@@ -1,0 +1,92 @@
+- 요즘은 self-supervised가 더 잘한다. 데이터셋을 엄청 많게 쓸 수 있기 때문임.
+### 14-1. Pretext Task
+- pretext task: self-supervised learning task for learning representations
+- target task랑 비슷할 필요는 없음.
+- 의미적인 segmentation이랑 비슷할 필요는 없음.
+- 굉장히 강력한 표현을 배운다.
+- classification
+	- 8-way classification: 주어진 box를 둘러싸는 8개 box를 만들고, 그 중 하나가 같이 주어지면 위치를 예하는 것. 자동으로 생성 가능.
+	- 4-way classification: 이미지가 회전한 정도(0,90,180,270도)를 예측하는 것.
+	- inpainting: 특정 영역을 자른 다음에, 네트워크가 빈 영역을 예측하게 하는 것.
+- reconstruction
+	- masked image modeling: input의 많은 부분이 가려진다. encoder가 patch 간의 relation을 학습한다. 거기서 masked token을 순서에 맞게 추가하고, decoder가 masked token으로부터 input을 복원하는 게 목적임.
+		- decoder가 너무 강하면 encoder가 학습이 어려움. 그래서 encoder는 크고 decoder는 작음.
+- metric learning
+	- invariance learning: video에서 patch를 하나 정하고 그걸 tracking한다. 모든 patch를 같은 걸로 취급한다.
+		- 또 다른 방법으로는 input 이미지가 주어지면 augment function으로 variance를 합성하는 것이 있음. augmented data가 물론 아주 다르지만 같은걸로 취급함.
+### 14-2. Reconstruction - Masked Autoencoding
+- BERT
+	- masked language modeling: 15%를 masking하기
+	- next sentence prediction
+- MAE
+	- 75%를 masking하기
+	- 크게 mask하는게 성능을 높이는데 도움이 된다
+	- encoder는 visible patch만 받는다.
+	- decoder는 안씀. encoder만 쓸거임. 또 masking 없이 전체 이미지를 받음.
+	- 이제 encoder가 다른 downstream task에 쓰인다.
+- Spatiotemporal MAE
+	- MAE를 그냥 video에 적용한거임.
+	- 95%나 지워도 작동함.
+	- 이렇게 만든 모델은 fine-tuning이 엄청 빠름. 그냥 scratch부터 데이터 학습하는 것보다 빠르고, 더 성능도 좋다.
+- patch 위치도 중요하기 떄문에 patch 순서를 바꾸면(positional embedding을 바꾸는걸 말하는거임) 작동하지 않을 가능성이 높다.
+	- masking 없이 위치만 뒤섞고 복원하는 self-supervised task도 있음.
+-  각 token마다 reconstruction loss를 적용한다.
+### 14-3. Invariance Learning - Contrastive Learning
+- contrastive learning이 self-supervised를 지배한다.
+	- vision language pretraining에도 쓰임.
+	- DINO도 contrastive learning을 모방한거임.
+- BERT: MLM.
+	- classification loss을 씀.
+	- NLP에서는 dictionary를 정의한다. 그것들이 전부 class label임.
+- visual data에서는 어떻게 label을 만들까?
+	- 일단 dictionary를 만드는 건 어렵다.
+	- 언어는 인공적이고, symbol의 집합이다.
+	- visual data는 dictionary를 clear하게 정의하는 방법이 없음.
+	- dictionary 자체도 encoder로 만든다.
+	- 그리고, dictionary를 만드는 인코더랑 입력값을 넣는 인코더가 파라미터를 공유한다.
+- non-parametric instance discrimination: 이미지를 CNN backbone에 넣어서 벡터 만들고, 그걸 저차원으로 옮긴 다음에 정규화해서 이미 있는 데이터들이랑 inner product로 비교해서 softmax로 확률분포를 만든다.
+	- embedding space가 unit sphere.
+	- image 각각이 전부 class임.
+	- 비슷한 데이터도 다르게 분류되긴 하는데, 그런 경우는 희박하다고 생각한다.
+	- positive sample은 기존 이미지를 augmentation을 해서 만든다.
+	- negative sample이 훨씬 중요함.
+	- backbone CNN의 갱신에 따라 memory bank는 계속 업데이트해줘야 하는데, 그게 힘들다. 그래서 random sample을 구해서 그걸로 각 training data에 negative example로 준다.
+	- temperature $\tau$: 얼마나 데이터가 떨어져야하는지 나타내는 거임.
+- MoCo
+	- 모델 자체는 비슷하게 생겼음.
+	- embedding vector가 queue에 들어간다.
+	- queue가 가득 차면, momentum contrastive learning이 시작된다.
+	- dictionary는 queue 크기랑 같다.
+	- recent embedding이 옛날 껄 대체한다.
+	- 그래서, 위의 모델과는 다르게 너무 outdated되지 않는다.
+	- fluctuate supervised signal을 해결하는 건 여전히 어렵다.
+	- 여전히 queue의 오래된 데이터들도 outdated된다. 옛날 embedding network로부터 만들어졌을 것이기 때문. 그래서 current embedding이랑 previous embedding에 여전히 차이가 있다.
+	- 이걸 해결하기 위해, momentum encoder를 들여왔음.
+		- exponential moving average encoder
+	- 이제는 두 인코더가 다르다.
+	- encoder가 업데이트된다. 그러고 나서 momentum encoder는 encder에 의존하면서 업데이트한다. (exponential moving average)
+	- momentum encoder는 천천히 업데이트되어야 한다. 그래야, embedding이 너무 빨리 outdated되지 않는다.
+	- temporal ensemble임. 모델을 시간에 따라 합치기 때문.
+	- ensemble 모델은 distribution shift에 robust하다.
+	- InfoNCE loss: contrastive learning이랑 엄청 비슷하지만 좀 다른 loss를 쓴다.
+	- softmax operation인데 각 query는 queue dictionary의 postive key와 negative key.
+- DINOv1
+	- 가장 유명함.
+	- MoCo, memory bank랑 비슷함.
+	- loss가 좀 다름.
+	- teacher는 student의 exponential moving average로 바뀐다. (momentum encoder임)
+	- key idea는 knowledge distillation를 쓰는 거임.
+	- 기존에는 softmax로 바꾸고, contrastive learning을 쓴다.
+	- teacher가 주는 label은 부드러운 probability distribution임. (one-hot vector가 아님)
+	- one-hot encoding은 class label 간의 관계에 대해 설명할 수가 없음. teacher는 accurate relation을 제공한다. 그러면, 그걸 student layer가 approximate하면 더 잘 배울 수가 있음. teacher network의 정확한 관계를 받기 때문.
+	- cross entropy loss를 쓴다.
+	- teacher에는 centering + sharpening을 추가해서, 모든 training datapoint에 대해서 같은 class를 내뱉는 걸 방지함.
+	- 또 중요한 기여 중 하나는, self-supervised learning representation learned by knowledge distillation이 target area 내의 feature vector가 자기들끼리 비슷하게 된다는 사실을 알게 됨.
+	- 그걸로 target object의 area를 추정할 수 있다.
+	- 이러한 건 object detection이나 segmentation에 상당히 유용함. feature matching으로 그런 것들을 할 수 있음.
+	- DINO + 작은 layer만 해도 segmentation을 엄청 잘 할 수 있음.
+- DINOv1 -> scaleup
+	- scaleup되어 생기는 여러 문제들을 잘 해결해야 함. scaleup하면 stability가 줄어든다.
+	- DINOv2: 142M image를 이용.
+	- DINOv3: 1.7B image를 이용.
+		- feature map을 가지고 pixel level segmentation 하는 것도 더 잘하게 됨. (Gram anchoring)

@@ -1,0 +1,90 @@
+### 15-1. Multimodal AI
+- 왜 멀티모달 AI가 필요함? 사람이 그렇게 세상을 인식하기 때문임. 사람한테는 오감이 있다.
+- conditional image synthesis: class가 주어지면 그걸 sketch하는 거.
+- 이제는 현실에 없는 것도 합성이 가능하다.
+- multimodal data가 생각보다 많다.
+	- 위키피디아는 사진+설명
+	- medical data는 의사가 증상에 대해 설명해놓음.
+	- 뉴스는 이미지에 짧은 설명을 달아놓는 경우가 많음.
+	- img에 alt를 잘 보면 된다. 물론 퀄리티가 엄청 좋진 않음.
+### 15-2. Vision-language Model Pretraining
+- 개많은 이미지/텍스트 세트가 있다고 하자.
+- joint embedding space에서 이를 배우는 방법을 배운다.
+- CLIP이 가장 잘 알려진 방법임.
+	- CLIP의 아이디어는 contrastive learning을 거의 그대로 가져온다.
+	- augmented된 이미지들만 positive, 나머지는 전부 negative임.
+	- language가 하나의 supervision이라고 생각할 수 있다. 이건 맞음.
+	- 그러나, 언어를 이용하는 건 pos/neg를 명확하게 판별하기는 어렵다.
+	- binary 데이터 형태로 이걸 sementic equivalence를 측정하는 건 어렵기 때문.
+	- CLIP은 true image text embedding pair 사이의 유사도를 최대화하고, mismatched image-text embedding pair의 유사도는 최소화하는 것이 목적임.
+	- loss는 InfoNCE를 쓴다. row-wise, column-wise가 동시에 이용된다.
+	- 임베딩 벡터는 L2 norm된 상태이기 때문에, cos sim이 유사도를 측정하는거임.
+	- CLIP 모델은 zero shot transfer 때문에 유명하다.
+	- prompt engineering: `A photo of [class]`라는 프롬프트가 주어졌을 때, `[class]` 부분을 채우고 싶다고 하자. 그러면, 모든 가능한 후보들과 함께, 이미지와의 유사도를 측정해서 최적을 찾는다.
+	- 쿼리 텍스트와 이미지들의 유사도를 측정해서 가장 비슷한 이미지를 찾는다.
+- BLIP: CLIP의 진화판 중 1개
+	- CLIP에는 2가지 문제점이 있음.
+		- 모델이 이해-기반 작업만 잘함. (discriminative task) 즉, generation은 잘 못 함.
+		- 데이터 학습할 때, image-text 데이터를 웹에서 바로 크롤링해서 노이즈가 상당함. 이미지의 caption이 정확하지 않기 때문. class labeling은 자연스럽지만, 이미지의 자연어 설명을 적는건 훨씬 더 힘듦. automatic pseudo-labeling.
+	- 해결법은 다음과 같음.
+		- MED: 3개 vision language 작업을 잘 할 수 있도록 학습된 모델. CLIP + image-text matching(CLIP도 이걸 해주는데 이걸 추가한 이유는 뭘까? 나중에 설명해줌) + language modeling (주어진 context에 대해, 다음 단어를 예측하는 생성형 모델. next word prediction)
+		- CapFilt: 더 중요한 기여. 웹의 노이즈 데이터를 해결하는 데이터 bootstrapping 방법. 사람이 건들지 않음. ai 모델이 caption을 iterative하게 개선한다. ai가 스스로 개선하는 거임.
+		- 옛날에는 이런 작업이 신뢰도가 적었지만, 지금은 ai가 매우 성능이 뛰어나서 이미 데이터를 잘 만든다.
+	- MED(multimodal mixture of encoder-decoder): 왼쪽은 CLIP의 약간 변형판. 중간 오른쪽도 각각 역할에 맞는 레이어임. (더 알아보기). 이러한 작업이 의미가 있으려면 각 인코더의 파라미터를 공유해야 한다.
+	- CapFilt: captioning + filtering. MED를 학습하면, image-text matching, language modeling 능력이 생긴다. 이걸 가지고, training data를 더 개선하는 거임.
+- SigLIP: CLIP의 진화판 중 1개 (2)
+	- Sigmoid Loss을 이용. CLIP의 loss 함수의 단점을 개선함.
+	- 이거 하려면 겁나 큰 batch size를 제공해야 됨. 계산량이 많아서 비효율적임.
+	- sigmoid loss
+		- temperature: tau 같은거임. 근데, 고정된 수가 아니라 learnable parameter임.
+	- 기본적으로 binary classification이기 때문에 데이터를 individually하게 넣을 수 있음. 모든 text-image pair를 고려할 필요가 없다.
+	- 따라서, chunking을 통해 더 효율적으로 구현된다.
+	- GPU 3개가 있다고 하면, 서로의 데이터를 건들 필요가 없기 때문에 오버헤드가 적음...??
+	- batch size가 작으면 성능이 더 좋은데, 커지면 별 차이가 없어진다. 그래도 시간은 좀 덜 걸림.
+### 15-3. Finetuning of VLMs
+- VLM은 general한 경우에 잘 작동하고, supervised learn model은 특정 분야에서 잘한다.
+- VLM이 특정 분야에서 잘하게 하려면, finetuning을 하면 됨.
+- 그냥 full finetuning은 작업 자체가 오래걸리고, 모델이 OOD에 대한 처리 능력을 잃을 수 있다.
+	- robust finetuning
+	- parameter-efficient finetuning
+- Finetune Like You Pretrain: robust finetuning. 이것만 설명해줄거임. 관심이 있다면 찾아보자.
+	- 원래 finetune하는 것처럼 하지 말고, 기존 pretraining 방법을 그대로 쓰자.
+	- zero-shot 능력을 그대로 유지한다.
+	- 기존 finetuning은 이미지 인코더만 업데이트한다.
+	- FLYP은 이미지, 텍스트 인코더를 동시에 업데이트한다.
+	- 텍스트 인코더가 많은 말뭉치를 학습한다. 텍스트 인코더는 이미 클래스 이름과 그 관계를 알고 있음. 따라서 finetuning에 텍스트 인코더를 같이 넣는건 좋은 선택이다.
+	- weight ensemble: pretrained, finetuned model의 linear interpolation. 이걸 쓰면 더 좋아진다. OOD robustness랑 specific target task를 동시에 올리는데 좋음.
+	- ppt의 그림은 서로 다른 interpolation weight에 따른 OOD accuracy와 ID test accuracy 사이의 관계를 보여줌.
+		- upper-right corner 쪽으로 치우처 있는 것일수록 더 좋음.
+- LoRA(Low-rank Adaptation)
+	- 이제는 well-known. 영향력과 효율성이 굉장히 좋음이 알려졌기 때문.
+	- large scale model에서는 finetuning에 이걸 쓰는게 standard임.
+	- 작은 adapter를 만들고, 원래 모델 파라미터는 고정한 다음에 작은 adapter만 학습시킨다.
+	- task-specific하다. 여러 개 모델을 만들고 싶으면, 그냥 LoRA의 작은 파라미터만 다루면 된다. 굉장히 효율적임.
+	- motivation: large model을 low-dim embedding space에서 볼 수 있음. <- ??
+	- 우리의 모델에는 linear layer가 엄청 많다. transformer 같은거만 봐도 그럼.
+	- lora는 linear layer의 input을 받아서, low rank projection하고, 다시 decode해서 해당 linear layer의 output과 더해진다. 즉, 더해진 matrix의 rank가 low하다.
+	- ppt의 A, B는 각각 하나의 행렬임. 곱하면 linear model이랑 크기는 같은데, rank는 작음.
+		- 이러한 update matrix A, B는 high dim space에서 표현되지 않아도 된다는 아이디어임.
+	- 보통 transformer에는 key-query projection process에 LoRA가 들어감.
+	- 실제 inference에 inference latency가 없다. 실제 추론 시에는 그냥 기존 linear weight에 AB 행렬을 더해버림. 차원이 같아서 상관 없음.
+	- 다른 finetuning 작업들이랑 동시에 쓸 수 있음. (orthogonal하다)
+- CoOp(Context Optimization)
+	- prompt를 자동으로 optimize하기.
+	- 같은걸 하는데, 프롬프트를 바꾸면 성능이 달라짐.
+	- prompt text를 learnable weight로 만든다.
+	- 입력값을 연속된 embedding vector로 바꾼다.
+	- learnable context M개 + class token 1개가 들어간다. 실제 사용할 때는 class token만 바꾸면 됨.
+		- 클래스 토큰 위치를 정할 수가 있음.
+		- class 마다 context를 다르게 하거나, 같게 하거나도 가능.
+		- 위의 조합에 따라 총 4가지 타입이 나옴.
+### 15-4. Vision-language Task
+- Referring Expression Segmentation (RES): 자연어 쿼리로 주어진 어떤 종류던지 간에 segmentation하는 것.
+	- 이제는 predefined class가 필요없음.
+	- pixelwise visual grounding(multimodal task. 자연어 쿼리를 이용한 여러 작업들)
+	- ReSTR: transformer로 이미지와 텍스트 간의 관계를 포착한다. 멀리 떨어진 것들도 포착할 수 있음. segmenter랑 비슷함. text-visual info를 aggregate하는 방법이 다름.
+	- RISCLIP: CLIP을 쓴다. CLIP은 대량의 말뭉치로 학습해서 객체의 다양한 언어적 표현을 많이 알고 있음. 즉, 기반 지식이 많음. image-text alignment가 쓸모가 많음.
+		- CLIP 자체도 패치 단위로 쪼개서 global text 임베딩(=EOS token, end-of-sentence token)과 유사도를 측정하면, rough segmentation을 할 수 있었음.
+		- CFE: unimodal feature extraction. 정확한 목적을 더 찾아보기
+		- SKE: self-attention layer. 입력된 텍스트/이미지 임베딩이 aggregated & mixed up된다.
+		- decoder: upsampling 디코더
